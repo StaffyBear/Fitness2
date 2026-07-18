@@ -162,8 +162,10 @@ function switchTab(tabName, updateUrl = true) {
   if ($("activePageTitle")) $("activePageTitle").textContent = pageTitle(tabName);
   document.querySelectorAll("#bottomNav [data-tab]").forEach(button => button.classList.toggle("active", button.dataset.tab === tabName));
   if (updateUrl && routeByTab[tabName]) {
-    const nextPath = `/${routeByTab[tabName]}`;
-    if (window.location.pathname !== nextPath) history.pushState({ tabName }, "", nextPath);
+    const nextUrl = new URL(routeByTab[tabName], window.location.href);
+    const nextPath = `${nextUrl.pathname}${nextUrl.search}${nextUrl.hash}`;
+    const currentPath = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+    if (currentPath !== nextPath) history.pushState({ tabName }, "", nextPath);
   }
   window.scrollTo({ top: 0, behavior: "smooth" });
 }

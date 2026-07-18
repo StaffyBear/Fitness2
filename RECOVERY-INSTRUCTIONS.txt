@@ -1,49 +1,14 @@
-# Frever Fitness v6.1
+# Frever Fitness v6.3 Foundation
 
-Stable clean-URL rebuild based on the last working Firebase version.
+This is the flat-page test build for GitHub Pages and custom domains.
 
-## Upload to GitHub Pages
+## Upload
 
-Upload the **contents of this folder** directly to the repository root. Keep the existing `CNAME` file.
+Upload the **contents** of this folder directly to the root of the `Fitness2` repository. Keep the repository CNAME file.
 
-The repository root must contain:
+Expected root files include:
 
 - `index.html`
-- `app.js`
-- `styles.css`
-- `assets/`
-- `home/`
-- `workout/`
-- `routines/`
-- `history/`
-- `pbs/`
-- `body/`
-- `food/`
-- `timer/`
-- `exercises/`
-- `settings/`
-
-Do not upload the enclosing `frever-fitness-v6.1` folder itself.
-
-## URLs
-
-- `/home/`
-- `/workout/`
-- `/routines/`
-- `/history/`
-- `/pbs/`
-- `/body/`
-- `/food/`
-- `/timer/`
-- `/exercises/`
-- `/settings/`
-
-No Firebase changes are required.
-
-## Flat page structure (v6.2)
-
-Upload the contents of this folder directly to the GitHub repository root. The named page files are:
-
 - `home.html`
 - `workout.html`
 - `history.html`
@@ -54,5 +19,17 @@ Upload the contents of this folder directly to the GitHub repository root. The n
 - `timer.html`
 - `exercises.html`
 - `settings.html`
+- `app.js`
+- `styles.css`
+- `assets/frever-logo.svg`
 
-Keep `index.html` as the login/root page and keep your existing `CNAME` file.
+## What changed in v6.3
+
+- All CSS, JavaScript and image references use explicit relative paths.
+- Page navigation preserves a GitHub project subfolder during testing.
+- The same package works at `staffybear.github.io/Fitness2/`, `fitnesstest.libbyyakas.com`, and the production custom domain.
+- Navy and cool-blue Frever Fitness theme.
+- Configurable fixed bottom navigation retained.
+- Existing Firebase project and data retained.
+
+No Firebase console changes are required.
