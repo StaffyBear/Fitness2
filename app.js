@@ -137,7 +137,10 @@ function formatDate(date) {
 function startOfWeek(date) { const d = new Date(date); const day = (d.getDay()+6)%7; d.setHours(12,0,0,0); d.setDate(d.getDate()-day); return d; }
 function isoDate(date){ return date.toISOString().slice(0,10); }
 function addDays(date, amount){ const d=new Date(date); d.setDate(d.getDate()+amount); return d; }
-function pageTitle(name){ return ({dashboard:"Dashboard",workout:"Workout",routines:"Routines",history:"Workout history",pbs:"Personal bests",body:"Body tracking",food:"Meal planner",timer:"Timer",library:"Exercises",settings:"Settings"})[name] || "Frever Fitness"; }
+function pageTitle(name){ return ({dashboard:"Dashboard",workout:"Workout",routines:"Routines",history:"Workout history",pbs:"Personal bests",body:"Body tracking",food:"Meal planner",classes:"Local classes",timer:"Timer",library:"Exercises",settings:"Settings"})[name] || "Frever Fitness"; }
+const pageFiles = {dashboard:"home.html",workout:"workout.html",routines:"routines.html",history:"history.html",pbs:"pbs.html",body:"body.html",food:"food.html",classes:"classes.html",timer:"timer.html",library:"exercises.html",settings:"settings.html"};
+const initialPage = document.body?.dataset?.startPage || "dashboard";
+function openPage(tabName){ const file=pageFiles[tabName]; if(!file){ switchTab(tabName); return; } const current=location.pathname.split("/").pop() || "index.html"; if(current===file || (tabName==="dashboard" && current==="index.html")){ switchTab(tabName); } else { location.href=`./${file}`; } }
 
 function showToast(message) {
   $("toastText").textContent = message;
@@ -149,24 +152,11 @@ function askConfirm(title, text) {
   $("confirmDialog").showModal();
   return new Promise((resolve) => { confirmResolver = resolve; });
 }
-const routeByTab = {dashboard:"home.html",workout:"workout.html",routines:"routines.html",history:"history.html",pbs:"pbs.html",body:"body.html",food:"food.html",timer:"timer.html",library:"exercises.html",settings:"settings.html"};
-const tabByRoute = Object.fromEntries(Object.entries(routeByTab).map(([tab, route]) => [route, tab]));
-function initialTabFromPath() {
-  const route = window.location.pathname.split("/").filter(Boolean).pop() || "index.html";
-  if (route === "index.html" || route === "") return document.body.dataset.initialTab || "dashboard";
-  return tabByRoute[route] || document.body.dataset.initialTab || "dashboard";
-}
-function switchTab(tabName, updateUrl = true) {
+function switchTab(tabName) {
   document.querySelectorAll(".panel").forEach((element) => element.classList.remove("active"));
   $(tabName)?.classList.add("active");
   if ($("activePageTitle")) $("activePageTitle").textContent = pageTitle(tabName);
   document.querySelectorAll("#bottomNav [data-tab]").forEach(button => button.classList.toggle("active", button.dataset.tab === tabName));
-  if (updateUrl && routeByTab[tabName]) {
-    const nextUrl = new URL(routeByTab[tabName], window.location.href);
-    const nextPath = `${nextUrl.pathname}${nextUrl.search}${nextUrl.hash}`;
-    const currentPath = `${window.location.pathname}${window.location.search}${window.location.hash}`;
-    if (currentPath !== nextPath) history.pushState({ tabName }, "", nextPath);
-  }
   window.scrollTo({ top: 0, behavior: "smooth" });
 }
 
@@ -955,7 +945,7 @@ function renderBottomNav() {
   const selected = normaliseBottomNav(settings.bottomNav);
   const pages = [{ id: "dashboard", label: "Home", icon: "⌂" }, ...selected.map(id => bottomNavPages.find(page => page.id === id)).filter(Boolean)];
   $("bottomNav").innerHTML = pages.map(page => `<button data-tab="${page.id}" type="button"><span>${page.icon}</span><small>${page.label}</small></button>`).join("");
-  $("bottomNav").querySelectorAll("[data-tab]").forEach(button => button.onclick = () => switchTab(button.dataset.tab));
+  $("bottomNav").querySelectorAll("[data-tab]").forEach(button => button.onclick = () => openPage(button.dataset.tab));
   const active = document.querySelector(".panel.active")?.id || "dashboard";
   $("bottomNav").querySelectorAll("[data-tab]").forEach(button => button.classList.toggle("active", button.dataset.tab === active));
 }
@@ -1190,7 +1180,7 @@ $("toastCloseBtn").onclick = () => $("toastDialog").close();
 $("confirmCancelBtn").onclick = () => { $("confirmDialog").close(); confirmResolver?.(false); confirmResolver = null; };
 $("confirmOkBtn").onclick = () => { $("confirmDialog").close(); confirmResolver?.(true); confirmResolver = null; };
 
-document.querySelectorAll("[data-tab]").forEach((tab) => tab.onclick = () => switchTab(tab.dataset.tab));
+document.querySelectorAll("[data-tab]").forEach((tab) => tab.onclick = () => openPage(tab.dataset.tab));
 $("moreTileBtn").onclick = () => $("moreTiles").classList.toggle("hidden");
 $("quickAddExerciseBtn").onclick = () => { switchTab("library"); clearExerciseForm(); };
 $("demoBtn").onclick = () => { const exercise = selectedExercise(); if (exercise?.demo) window.open(exercise.demo, "_blank", "noopener"); };
@@ -1390,11 +1380,9 @@ onAuthStateChanged(auth, async (user) => {
   if (!user) return;
   try {
     await loadAll();
-    switchTab(initialTabFromPath(), false);
+    switchTab(initialPage);
   } catch (error) {
     console.error(error);
     showToast(`You are logged in, but fitness data could not be loaded: ${error.message || "Firestore access failed."}`);
   }
 });
-
-window.addEventListener("popstate", () => switchTab(initialTabFromPath(), false));
