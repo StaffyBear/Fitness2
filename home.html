@@ -5,9 +5,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta name="theme-color" content="#10243f" />
   <title>Frever Fitness</title>
-  <link rel="stylesheet" href="./styles.css?v=6.3" />
+  <link rel="stylesheet" href="./styles.css?v=7.0" />
 </head>
-<body data-initial-tab="history">
+<body data-start-page="history">
 <header class="app-header">
   <div class="brand-wrap"><img class="brand-logo" src="./assets/frever-logo.svg" alt="Frever panda logo" /><div>
     <h1>Frever Fitness</h1>
@@ -49,6 +49,7 @@
         <button class="nav-tile" data-tab="pbs" type="button"><span>🏆</span><strong>PBs</strong></button>
         <button class="nav-tile" data-tab="body" type="button"><span>📏</span><strong>Body</strong></button>
         <button class="nav-tile" data-tab="food" type="button"><span>🍽️</span><strong>Food</strong></button>
+        <button class="nav-tile" data-tab="classes" type="button"><span>🧘</span><strong>Classes</strong></button>
         <button class="nav-tile" data-tab="timer" type="button"><span>⏱️</span><strong>Timer</strong></button>
         <button id="moreTileBtn" class="nav-tile" type="button"><span>•••</span><strong>More</strong></button>
       </div>
@@ -91,6 +92,8 @@
 
     <section id="food" class="panel"><div class="card"><div class="row between gap"><div><h2>Meal planner</h2><p class="muted compact">Plan meals without needing to calorie-track them.</p></div><button id="saveMealWeekBtn" class="primary small" type="button">Save week</button></div><div class="week-switch"><button id="prevMealWeekBtn" type="button">‹</button><strong id="mealWeekLabel"></strong><button id="nextMealWeekBtn" type="button">›</button></div><div id="mealPlannerGrid" class="meal-grid"></div></div></section>
 
+    <section id="classes" class="panel"><div class="card"><div class="row between gap"><div><h2>Local classes</h2><p class="muted compact">Save classes in your local area and open the provider’s booking page.</p></div><button class="primary small" type="button" disabled title="Coming in the next feature update">+ Add class</button></div><div class="empty-state"><span>🧘</span><h3>Classes directory</h3><p class="muted">This page is ready for class name, provider, time, location, cost and booking links.</p></div></div></section>
+
     <section id="timer" class="panel"><div class="card"><h2>Timer</h2><div class="mode-switch"><button class="active" data-timer-mode="stopwatch" type="button">Stopwatch</button><button data-timer-mode="countdown" type="button">Rest timer</button></div><div id="timerDisplay" class="timer-display">00:00.0</div><p id="timerStatus" class="timer-status">Ready</p><div class="timer-controls"><button id="timerStartBtn" class="primary" type="button">Start</button><button id="timerResetBtn" class="secondary" type="button">Reset</button></div><div id="timerPresetWrap" class="timer-presets hidden"><button class="secondary" data-seconds="30" type="button">30 sec</button><button class="secondary" data-seconds="60" type="button">60 sec</button><button class="secondary" data-seconds="90" type="button">90 sec</button><button class="secondary" data-seconds="120" type="button">2 min</button></div></div></section>
 
     <section id="library" class="panel"><div class="library-switch"><button id="showExerciseLibraryBtn" class="active" type="button">Existing exercises</button><button id="showExerciseFormBtn" type="button">Add new exercise</button></div><div id="exerciseLibraryCard" class="card"><div class="row between"><div><h2>Exercise library</h2><p class="muted compact">Search your existing exercises and see when they were last completed.</p></div></div><input id="exerciseSearch" placeholder="Search exercises..." /><div id="exerciseList" class="tile-list top-gap"></div></div><div id="exerciseFormCard" class="card hidden"><h3 id="exerciseFormTitle">Add exercise</h3><input id="editingExerciseId" type="hidden" /><div class="grid two"><label>Name<input id="exName" /></label><label>Category<select id="exCategory"><option>Push</option><option>Pull</option><option>Legs</option><option>Core</option><option>Cardio</option><option>Mobility</option></select></label><label>Tracking mode<select id="exMode"><option value="standard">Both sides together</option><option value="leftRight">Left and right separately</option><option value="sideOptional">Side optional</option></select></label><label>Input type<select id="exInputType"><option value="repsWeight">Reps + weight</option><option value="time">Time</option><option value="repsOnly">Reps only</option></select></label><label>Equipment<input id="exEquipment" /></label><label>Default reps<input id="exDefaultReps" value="10" /></label><label>Default weight<input id="exDefaultWeight" value="0" /></label><label>Weight step<input id="exWeightStep" value="2.5" /></label><label>Default rest<input id="exRestSeconds" value="60" /></label></div><label>Demo video/GIF URL<input id="exDemo" /></label><label>Notes<textarea id="exNotes" rows="3"></textarea></label><div class="row gap"><button id="saveExerciseBtn" class="primary" type="button">Save exercise</button><button id="cancelExerciseEditBtn" class="ghost hidden" type="button">Cancel edit</button></div></div></section>
@@ -121,6 +124,6 @@
   <button id="toastCloseBtn" class="primary" type="button">OK</button>
 </dialog>
 
-<script type="module" src="./app.js?v=6.3"></script>
+<script type="module" src="./app.js?v=7.0"></script>
 </body>
 </html>
