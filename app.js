@@ -262,15 +262,16 @@ function renderEverything() {
 
 function blankGroupExercise(exerciseId = null) {
   const exercise = exerciseById(exerciseId) || exercises[0] || null;
-  return {
+  const item = {
     uid: crypto.randomUUID(),
     exerciseId: exercise?.id || "",
     reps: number(exercise?.defaultReps, settings.defaultReps),
     weight: number(exercise?.defaultWeight, 0),
-    side: exercise?.mode === "standard" ? "both" : "both",
+    side: "both",
     targetSets: Math.max(1, number(settings.defaultSets, 3)),
     completedSets: []
   };
+  return exercise ? applyLatestPerformance(item, exercise.id) : item;
 }
 
 function renderExerciseSelects() {
@@ -310,6 +311,7 @@ function groupExerciseCard(item, index) {
       <label class="grow">Exercise ${index + 1}<select data-group-field="exerciseId">${exercises.map(ex => `<option value="${escapeHtml(ex.id)}" ${ex.id === item.exerciseId ? "selected" : ""}>${escapeHtml(ex.name)}</option>`).join("")}</select></label>
       ${manualGroupExercises.length > 1 ? `<button class="ghost small" data-remove-group-exercise type="button">Remove</button>` : ""}
     </div>
+    ${latestCompletedSetForExercise(exercise.id) ? `<p class="last-performance">Last: ${latestCompletedSetForExercise(exercise.id).inputType === "time" ? `${latestCompletedSetForExercise(exercise.id).reps}s` : latestCompletedSetForExercise(exercise.id).inputType === "repsOnly" ? `${latestCompletedSetForExercise(exercise.id).reps} reps` : `${latestCompletedSetForExercise(exercise.id).weight}${settings.unit} × ${latestCompletedSetForExercise(exercise.id).reps}`}</p>` : `<p class="last-performance muted">No previous result</p>`}
     ${sideOptions(exercise, item.side)}
     <div class="compact-control-grid">
       <div class="mini-stepper"><span>${inputType === "time" ? "SECONDS" : "REPS"}</span><div><button data-group-adjust="reps" data-delta="-1" type="button">▼</button><input data-group-field="reps" inputmode="numeric" value="${number(item.reps,10)}"/><button data-group-adjust="reps" data-delta="1" type="button">▲</button></div></div>
@@ -402,8 +404,16 @@ function addManualExercise() {
 }
 
 function startNextRound() {
-  const unfinished = manualGroupExercises.some(item => item.completedSets.length < item.targetSets);
-  if (unfinished && !confirm("Some planned sets are not saved. Start the next round anyway?")) return;
+  if (activeRoutineSession?.sequence) {
+    const nextIndex = activeRoutineSession.currentBlockIndex + 1;
+    if (nextIndex >= activeRoutineSession.sequence.length) {
+      showToast("That was the final routine round. Finish and save the workout when ready.");
+      return;
+    }
+    activeRoutineSession.currentBlockIndex = nextIndex;
+    loadRoutineRound(nextIndex);
+    return;
+  }
   manualRoundNumber += 1;
   manualGroupExercises = [blankGroupExercise(manualGroupExercises[0]?.exerciseId), blankGroupExercise(manualGroupExercises[1]?.exerciseId || exercises[1]?.id || exercises[0]?.id)];
   renderManualRound();
@@ -462,9 +472,10 @@ async function savePairWorkout() {
     if (!grouped.has(key)) grouped.set(key, { exerciseId: entry.exerciseId, exerciseName: entry.exerciseName, sets: [] });
     grouped.get(key).sets.push({ setNumber: grouped.get(key).sets.length + 1, reps: entry.reps, weight: entry.weight, inputType: entry.inputType, side: entry.side, notes: entry.notes, completedAt: entry.completedAt, isPB: entry.isPB, roundNumber: round.roundNumber });
   }));
-  const workout = { date: $("workoutDate").value || today(), source: "manual", routineId: null, routineName: null, notes: $("roundNotes")?.value.trim() || "", exercises: [...grouped.values()], createdAt: serverTimestamp() };
+  const workout = { date: $("workoutDate").value || today(), source: activeRoutineSession ? "routine" : "manual", routineId: activeRoutineSession?.routineId || null, routineName: activeRoutineSession?.routineName || null, notes: $("roundNotes")?.value.trim() || "", exercises: [...grouped.values()], createdAt: serverTimestamp() };
   const ref = await addDoc(userCollection("workouts"), workout);
   workouts.unshift({ id: ref.id, ...workout, createdAt: { seconds: Math.floor(Date.now()/1000) } });
+  activeRoutineSession = null;
   resetManualEntry(true);
   renderPBs(); renderHistory(); renderExerciseLibrary(); renderBodyChart();
   showToast("Workout saved.");
@@ -565,6 +576,26 @@ function lastCompletedForExercise(exerciseId) {
   return workouts.find((workout) => (workout.exercises || []).some((entry) => entry.exerciseId === exerciseId))?.date || null;
 }
 
+function latestCompletedSetForExercise(exerciseId) {
+  for (const workout of workouts) {
+    const matchingEntries = (workout.exercises || []).filter((entry) => entry.exerciseId === exerciseId);
+    for (let entryIndex = matchingEntries.length - 1; entryIndex >= 0; entryIndex -= 1) {
+      const sets = matchingEntries[entryIndex].sets || [];
+      if (sets.length) return sets[sets.length - 1];
+    }
+  }
+  return null;
+}
+
+function applyLatestPerformance(item, exerciseId) {
+  const exercise = exerciseById(exerciseId);
+  const latest = latestCompletedSetForExercise(exerciseId);
+  item.reps = latest ? number(latest.reps, exercise?.defaultReps || settings.defaultReps) : number(exercise?.defaultReps, settings.defaultReps);
+  item.weight = latest && exerciseInputType(exercise) === "repsWeight" ? number(latest.weight, exercise?.defaultWeight || 0) : number(exercise?.defaultWeight, 0);
+  item.side = exercise?.mode === "standard" ? "both" : (latest?.side || "both");
+  return item;
+}
+
 function clearExerciseForm() {
   $("editingExerciseId").value = "";
   $("exerciseFormTitle").textContent = "Add exercise";
@@ -645,10 +676,10 @@ async function saveExercise() {
 function blankRoutineBlock() {
   return {
     id: crypto.randomUUID(),
-    name: `Group ${routineDraftBlocks.length + 1}`,
-    rounds: 3,
-    restAfterRound: settings.defaultRest,
-    exercises: [{ exerciseId: exercises[0]?.id || "", defaultReps: exercises[0]?.defaultReps || 10, defaultWeight: exercises[0]?.defaultWeight || 0 }]
+    name: `Round ${routineDraftBlocks.length + 1}`,
+    rounds: 1,
+    restAfterRound: 0,
+    exercises: [{ exerciseId: exercises[0]?.id || "" }]
   };
 }
 
@@ -657,10 +688,15 @@ function openRoutineEditor(routine = null) {
   $("routineEditorTitle").textContent = routine ? `Edit ${routine.name}` : "New routine";
   $("routineName").value = routine?.name || "";
   $("routineDay").value = routine?.day || "";
-  $("routineStartDate").value = routine?.startDate || today();
-  $("routineEndDate").value = routine?.endDate || "";
-  $("routineNotes").value = routine?.notes || "";
-  routineDraftBlocks = routine?.blocks ? structuredClone(routine.blocks).map((block) => ({ ...block, id: block.id || crypto.randomUUID() })) : [blankRoutineBlock()];
+  routineDraftBlocks = routine?.blocks
+    ? structuredClone(routine.blocks).map((block, index) => ({
+        id: block.id || crypto.randomUUID(),
+        name: `Round ${index + 1}`,
+        rounds: 1,
+        restAfterRound: 0,
+        exercises: (block.exercises || []).map(entry => ({ exerciseId: entry.exerciseId }))
+      }))
+    : [blankRoutineBlock()];
   $("routineEditor").classList.remove("hidden");
   renderRoutineBlocks();
   $("routineEditor").scrollIntoView({ behavior: "smooth", block: "start" });
@@ -675,29 +711,23 @@ function closeRoutineEditor() {
 function renderRoutineBlocks() {
   if (!routineDraftBlocks.length) routineDraftBlocks.push(blankRoutineBlock());
   $("routineBlocks").innerHTML = routineDraftBlocks.map((block, blockIndex) => `
-    <div class="block-card" data-block-index="${blockIndex}">
+    <div class="block-card simple-routine-round" data-block-index="${blockIndex}">
       <div class="block-head">
-        <strong>Group ${blockIndex + 1}</strong>
-        <button class="danger small" data-remove-block="${blockIndex}" type="button">Remove group</button>
-      </div>
-      <div class="grid two">
-        <label>Group name<input data-block-field="name" value="${escapeHtml(block.name || `Group ${blockIndex + 1}`)}" /></label>
-        <label>Rounds<input data-block-field="rounds" inputmode="numeric" value="${number(block.rounds, 3)}" /></label>
-        <label>Rest after each round (seconds)<input data-block-field="restAfterRound" inputmode="numeric" value="${number(block.restAfterRound, settings.defaultRest)}" /></label>
+        <strong>Round ${blockIndex + 1}</strong>
+        ${routineDraftBlocks.length > 1 ? `<button class="danger small" data-remove-block="${blockIndex}" type="button">Remove round</button>` : ""}
       </div>
       <div class="block-exercises">
         ${(block.exercises || []).map((entry, exerciseIndex) => routineExerciseRow(blockIndex, exerciseIndex, entry)).join("")}
       </div>
-      <button class="secondary small top-gap" data-add-block-exercise="${blockIndex}" type="button">+ Add exercise to group</button>
+      <button class="secondary small top-gap" data-add-block-exercise="${blockIndex}" type="button">+ Add exercise</button>
     </div>`).join("");
 }
 
 function routineExerciseRow(blockIndex, exerciseIndex, entry) {
-  return `<div class="block-exercise-row" data-block-exercise="${blockIndex}:${exerciseIndex}">
-    <label class="exercise-pick">Exercise<select data-routine-exercise-field="exerciseId">${exercises.map((exercise) => `<option value="${escapeHtml(exercise.id)}" ${exercise.id === entry.exerciseId ? "selected" : ""}>${escapeHtml(exercise.name)}</option>`).join("")}</select></label>
-    <label>Reps / sec<input data-routine-exercise-field="defaultReps" inputmode="numeric" value="${number(entry.defaultReps, 10)}" /></label>
-    <label>Weight<input data-routine-exercise-field="defaultWeight" inputmode="decimal" value="${number(entry.defaultWeight)}" /></label>
-    <button class="danger small remove-block-exercise" data-remove-block-exercise="${blockIndex}:${exerciseIndex}" type="button">Remove</button>
+  return `<div class="block-exercise-row simple-routine-exercise" data-block-exercise="${blockIndex}:${exerciseIndex}">
+    <span class="routine-order">${exerciseIndex + 1}</span>
+    <label class="exercise-pick"><span class="sr-only">Exercise</span><select data-routine-exercise-field="exerciseId">${exercises.map((exercise) => `<option value="${escapeHtml(exercise.id)}" ${exercise.id === entry.exerciseId ? "selected" : ""}>${escapeHtml(exercise.name)}</option>`).join("")}</select></label>
+    ${(routineDraftBlocks[blockIndex]?.exercises || []).length > 1 ? `<button class="danger small remove-block-exercise" data-remove-block-exercise="${blockIndex}:${exerciseIndex}" type="button">Remove</button>` : ""}
   </div>`;
 }
 
@@ -706,18 +736,12 @@ function syncRoutineDraftFromDOM() {
     const blockIndex = number(blockElement.dataset.blockIndex);
     const block = routineDraftBlocks[blockIndex];
     if (!block) return;
-    blockElement.querySelectorAll("[data-block-field]").forEach((input) => {
-      const field = input.dataset.blockField;
-      block[field] = field === "name" ? input.value : number(input.value);
-    });
     blockElement.querySelectorAll("[data-block-exercise]").forEach((row) => {
       const [, exerciseIndexText] = row.dataset.blockExercise.split(":");
       const exerciseIndex = number(exerciseIndexText);
       const entry = block.exercises[exerciseIndex];
-      row.querySelectorAll("[data-routine-exercise-field]").forEach((input) => {
-        const field = input.dataset.routineExerciseField;
-        entry[field] = field === "exerciseId" ? input.value : number(input.value);
-      });
+      const select = row.querySelector('[data-routine-exercise-field="exerciseId"]');
+      if (entry && select) entry.exerciseId = select.value;
     });
   });
 }
@@ -726,20 +750,20 @@ async function saveRoutine() {
   syncRoutineDraftFromDOM();
   const name = $("routineName").value.trim();
   if (!name) return showToast("Enter a routine name.");
-  if (!routineDraftBlocks.length || routineDraftBlocks.some((block) => !block.exercises?.length)) return showToast("Each group needs at least one exercise.");
+  if (!routineDraftBlocks.length || routineDraftBlocks.some((block) => !block.exercises?.length)) return showToast("Each round needs at least one exercise.");
   const payload = {
     name,
     day: $("routineDay").value.trim(),
-    startDate: $("routineStartDate").value || today(),
-    endDate: $("routineEndDate").value || "",
-    notes: $("routineNotes").value.trim(),
+    startDate: today(),
+    endDate: "",
+    notes: "",
     blocks: routineDraftBlocks.map((block, index) => ({
       id: block.id || crypto.randomUUID(),
       order: index,
-      name: block.name || `Group ${index + 1}`,
-      rounds: Math.max(1, number(block.rounds, 3)),
-      restAfterRound: Math.max(0, number(block.restAfterRound, settings.defaultRest)),
-      exercises: block.exercises.map((entry) => ({ exerciseId: entry.exerciseId, defaultReps: number(entry.defaultReps, 10), defaultWeight: number(entry.defaultWeight) }))
+      name: `Round ${index + 1}`,
+      rounds: 1,
+      restAfterRound: 0,
+      exercises: block.exercises.map((entry) => ({ exerciseId: entry.exerciseId }))
     })),
     updatedAt: serverTimestamp()
   };
@@ -760,36 +784,31 @@ async function saveRoutine() {
 
 function renderRoutines() {
   if (!routines.length) {
-    $("routineList").innerHTML = `<p class="muted">No routines yet. Create one to organise exercises into supersets or groups.</p>`;
+    $("routineList").innerHTML = `<p class="muted">No routines yet. Create one by choosing exercises in the order you want to complete them.</p>`;
     return;
   }
   $("routineList").innerHTML = routines.map((routine) => {
-    const groupText = (routine.blocks || []).map((block) => `${block.name || "Group"}: ${(block.exercises || []).map((entry) => exerciseById(entry.exerciseId)?.name || "Missing exercise").join(" + ")} × ${block.rounds || 1} rounds`).join("<br>");
-    return `<div class="item routine-card"><div class="item-title">${escapeHtml(routine.name)}</div><div class="item-meta">${escapeHtml(routine.day || "No day set")} · ${routine.startDate ? `from ${formatDate(routine.startDate)}` : ""}${routine.endDate ? ` to ${formatDate(routine.endDate)}` : ""}<br>${groupText}</div><div class="item-actions"><button class="primary small" data-start-routine="${escapeHtml(routine.id)}" type="button">Start routine</button><button class="secondary small" data-edit-routine="${escapeHtml(routine.id)}" type="button">Edit</button><button class="danger small" data-delete-routine="${escapeHtml(routine.id)}" type="button">Delete</button></div></div>`;
+    const rounds = (routine.blocks || []).map((block, index) => `<div class="routine-round-preview"><strong>Round ${index + 1}</strong><span>${(block.exercises || []).map((entry) => escapeHtml(exerciseById(entry.exerciseId)?.name || "Missing exercise")).join(" · ")}</span></div>`).join("");
+    return `<div class="item routine-card"><div class="item-title">${escapeHtml(routine.name)}</div>${routine.day ? `<div class="item-meta">${escapeHtml(routine.day)}</div>` : ""}<div class="routine-preview-list">${rounds}</div><div class="item-actions"><button class="primary small" data-start-routine="${escapeHtml(routine.id)}" type="button">Start routine</button><button class="secondary small" data-edit-routine="${escapeHtml(routine.id)}" type="button">Edit</button><button class="danger small" data-delete-routine="${escapeHtml(routine.id)}" type="button">Delete</button></div></div>`;
   }).join("");
 }
 
 function buildRoutineSequence(routine) {
-  const sequence = [];
-  (routine.blocks || []).forEach((block, blockIndex) => {
-    for (let round = 1; round <= Math.max(1, number(block.rounds, 1)); round += 1) {
-      (block.exercises || []).forEach((entry, exerciseIndex) => {
-        sequence.push({
-          blockIndex,
-          blockName: block.name || `Group ${blockIndex + 1}`,
-          round,
-          totalRounds: block.rounds,
-          exerciseIndex,
-          exerciseId: entry.exerciseId,
-          defaultReps: entry.defaultReps,
-          defaultWeight: entry.defaultWeight,
-          restAfterRound: block.restAfterRound,
-          isLastInRound: exerciseIndex === block.exercises.length - 1
-        });
-      });
-    }
-  });
-  return sequence;
+  return (routine.blocks || []).map((block, blockIndex) => ({
+    blockIndex,
+    blockName: `Round ${blockIndex + 1}`,
+    exercises: (block.exercises || []).map(entry => entry.exerciseId)
+  }));
+}
+
+function loadRoutineRound(blockIndex) {
+  const block = activeRoutineSession?.sequence?.[blockIndex];
+  if (!block) return false;
+  manualRoundNumber = blockIndex + 1;
+  manualGroupExercises = block.exercises.map(exerciseId => blankGroupExercise(exerciseId));
+  if (!manualGroupExercises.length) manualGroupExercises = [blankGroupExercise(exercises[0]?.id)];
+  renderManualRound();
+  return true;
 }
 
 function startRoutine(id) {
@@ -800,15 +819,16 @@ function startRoutine(id) {
     routineName: routine.name,
     date: today(),
     sequence: buildRoutineSequence(routine),
-    currentIndex: 0,
-    completed: [],
-    skipped: []
+    currentBlockIndex: 0
   };
-  $("routineSessionCard").classList.remove("hidden");
-  $("manualWorkoutCard")?.classList.add("hidden");
-  $("manualSetCard")?.classList.add("hidden");
-  renderRoutineSession();
+  manualRounds = [];
+  $("workoutDate").value = today();
+  $("routineSessionCard").classList.add("hidden");
+  $("manualWorkoutCard")?.classList.remove("hidden");
+  $("manualSetCard")?.classList.remove("hidden");
+  loadRoutineRound(0);
   switchTab("workout");
+  showToast(`${routine.name} loaded. Save each set, then use Next round.`);
 }
 
 function currentRoutineStep() {
@@ -1383,7 +1403,7 @@ $("roundExerciseList").onclick = (event) => {
 };
 $("roundExerciseList").onchange = (event) => {
   const card=event.target.closest("[data-group-uid]"); if(!card)return; const item=manualGroupExercises.find(entry=>entry.uid===card.dataset.groupUid); if(!item)return;
-  if(event.target.dataset.groupField==="exerciseId"){item.exerciseId=event.target.value; const ex=exerciseById(item.exerciseId); item.reps=ex?.defaultReps||10; item.weight=ex?.defaultWeight||0; item.side="both"; renderManualRound();}
+  if(event.target.dataset.groupField==="exerciseId"){item.exerciseId=event.target.value; applyLatestPerformance(item, item.exerciseId); renderManualRound();}
 };
 $("completedRounds").onclick = (event) => { const button=event.target.closest("[data-edit-round]"); if(button) editCompletedRound(number(button.dataset.editRound)); };
 
