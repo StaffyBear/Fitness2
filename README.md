@@ -1,14 +1,9 @@
-# Frever Fitness v8.0
+# Frever Fitness v8.1 — Exercise Library Reset
 
-Upload all files in this folder to the root of the Fitness2 test repository. Keep the existing CNAME file.
-
-## Main changes
-- Settings categories open as modal popups.
-- Email changes use Firebase verification-before-update flow.
-- Add Class now works and saves private class entries to Firestore.
-- Body statistics are condensed and entry forms open as popups.
-- PB modal spacing and mobile scrolling improved.
-- Workout History mobile overflow improved.
-- Three-column compact Home tiles retained.
-
-No Firebase rule changes are required because data remains under each user account.
+- Starter exercises are seeded only when the collection is empty.
+- Deleted individual exercises stay deleted.
+- Duplicate names are blocked.
+- User exercises are marked `builtIn: false` and `createdBy: "user"`.
+- Settings → Exercise library includes a reset tool.
+- Reset affects only the exercise library. Workouts, PB history, body entries, meals, classes and account data remain intact.
+- Routines using deleted custom exercises may require editing.

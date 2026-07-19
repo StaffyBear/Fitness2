@@ -178,15 +178,47 @@ function switchTab(tabName) {
 
 async function seedExercisesIfNeeded() {
   const snapshot = await getDocs(userCollection("exercises"));
-  const existingIds = new Set(snapshot.docs.map(entry => entry.id));
-  const missing = starterExercises.filter(exercise => !existingIds.has(exercise.id));
-  if (!missing.length) return;
-  await Promise.all(missing.map((exercise) => setDoc(userDoc("exercises", exercise.id), {
+  if (!snapshot.empty) return;
+  await createStarterExerciseLibrary();
+}
+
+async function createStarterExerciseLibrary() {
+  await Promise.all(starterExercises.map((exercise) => setDoc(userDoc("exercises", exercise.id), {
     ...exercise,
     builtIn: true,
+    createdBy: "system",
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp()
   })));
+}
+
+async function resetExerciseLibrary() {
+  const confirmed = await askConfirm(
+    "Reset exercise library?",
+    "This deletes every exercise in your library and replaces it with the clean starter list. Saved workout history and body data are not deleted. Routines using a custom exercise may need editing afterwards."
+  );
+  if (!confirmed) return;
+  const button = $("resetExerciseLibraryBtn");
+  if (button) { button.disabled = true; button.textContent = "Resetting…"; }
+  try {
+    const snapshot = await getDocs(userCollection("exercises"));
+    await Promise.all(snapshot.docs.map((item) => deleteDoc(item.ref)));
+    await createStarterExerciseLibrary();
+    exercises = await loadCollection("exercises");
+    exercises.sort((a, b) => a.name.localeCompare(b.name));
+    manualGroupExercises = [];
+    renderExerciseSelects();
+    renderExerciseLibrary();
+    renderRoutines();
+    resetManualEntry(true);
+    showToast(`Exercise library reset to ${exercises.length} starter exercises.`);
+    $("settingsPanelExercises")?.classList.add("hidden");
+    document.body.classList.remove("modal-open");
+  } catch (error) {
+    showToast(error.message || "The exercise library could not be reset.");
+  } finally {
+    if (button) { button.disabled = false; button.textContent = "Reset exercise library"; }
+  }
 }
 
 async function loadCollection(name) {
@@ -579,6 +611,8 @@ async function saveExercise() {
   const name = $("exName").value.trim();
   if (!name) return showToast("Enter an exercise name.");
   const editingId = $("editingExerciseId").value;
+  const duplicate = exercises.find((entry) => entry.id !== editingId && entry.name.trim().toLowerCase() === name.toLowerCase());
+  if (duplicate) return showToast(`“${duplicate.name}” already exists in your exercise library.`);
   const id = editingId || `${name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")}-${Date.now().toString().slice(-5)}`;
   const exercise = {
     name,
@@ -593,6 +627,7 @@ async function saveExercise() {
     demo: $("exDemo").value.trim(),
     notes: $("exNotes").value.trim(),
     builtIn: editingId ? exerciseById(editingId)?.builtIn || false : false,
+    createdBy: editingId ? (exerciseById(editingId)?.createdBy || "user") : "user",
     updatedAt: serverTimestamp()
   };
   await setDoc(userDoc("exercises", id), exercise, { merge: true });
@@ -1320,6 +1355,7 @@ $("saveNavigationBtn")?.addEventListener("click",saveSettings);
 $("saveHomeLayoutBtn")?.addEventListener("click",saveSettings);
 $("saveMealsSettingBtn")?.addEventListener("click",saveSettings);
 $("settingsLogoutBtn")?.addEventListener("click",()=>signOut(auth));
+$("resetExerciseLibraryBtn")?.addEventListener("click", resetExerciseLibrary);
 $("saveProfileBtn")?.addEventListener("click",async()=>{await updateProfile(currentUser,{displayName:$("displayNameSetting").value.trim()});renderSettingsAccount();showToast("Profile saved.");});
 async function accountCredential(){const password=$("accountCurrentPassword")?.value;if(!password)throw new Error("Enter your current password first.");const credential=EmailAuthProvider.credential(currentUser.email,password);await reauthenticateWithCredential(currentUser,credential);}
 $("changeEmailBtn")?.addEventListener("click",async()=>{try{await accountCredential();const next=$("accountNewEmail").value.trim();if(!next)throw new Error("Enter a new email address.");await verifyBeforeUpdateEmail(currentUser,next);showToast(`Verification email sent to ${next}. Open the link in that email to complete the change.`);}catch(e){showToast(e.message||"Email could not be changed.");}});
