@@ -1540,19 +1540,31 @@ $("prevMealWeekBtn")?.addEventListener("click",()=>{mealWeekStart=addDays(mealWe
 $("nextMealWeekBtn")?.addEventListener("click",()=>{mealWeekStart=addDays(mealWeekStart,7);renderMealPlanner();});
 $("saveMealWeekBtn")?.addEventListener("click",saveMealWeek);
 
-$("bodyDate").value = today();
-$("measureDate").value = today();
-$("routineStartDate").value = today();
+const bodyDateInput = $("bodyDate");
+if (bodyDateInput) bodyDateInput.value = today();
+
+const measureDateInput = $("measureDate");
+if (measureDateInput) measureDateInput.value = today();
+
+const routineStartDateInput = $("routineStartDate");
+if (routineStartDateInput) routineStartDateInput.value = today();
+
 renderTimer();
 
 onAuthStateChanged(auth, async (user) => {
   currentUser = user;
-  $("authMessage").textContent = "";
-  $("authPanel").classList.toggle("hidden", Boolean(user));
-  $("appPanel").classList.toggle("hidden", !user);
-  $("logoutBtn").classList.add("hidden");
-  $("userEmail").classList.add("hidden");
-  $("userEmail").textContent = user ? user.email : "Not signed in";
+const authMessage = $("authMessage");
+if (authMessage) authMessage.textContent = "";
+
+$("authPanel")?.classList.toggle("hidden", Boolean(user));
+$("appPanel")?.classList.toggle("hidden", !user);
+$("logoutBtn")?.classList.add("hidden");
+$("userEmail")?.classList.add("hidden");
+
+const userEmail = $("userEmail");
+if (userEmail) {
+  userEmail.textContent = user ? user.email : "Not signed in";
+}
   renderSettingsAccount();
   if (!user) return;
   try {
