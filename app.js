@@ -7,7 +7,7 @@ import {
   signOut,
   EmailAuthProvider,
   reauthenticateWithCredential,
-  updateEmail,
+  verifyBeforeUpdateEmail,
   updatePassword,
   updateProfile
 } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-auth.js";
@@ -51,6 +51,7 @@ let workouts = [];
 let routines = [];
 let bodyEntries = [];
 let mealPlans = [];
+let classes = [];
 let mealWeekStart = startOfWeek(new Date());
 let settings = { unit: "kg", weightMode: "total", measureUnit: "cm", defaultRest: 60, autoRest: false, defaultReps: 10, defaultSets: 3, heightCm: 0, bottomNav: ["workout", "history", "pbs", "body"], homeTiles: ["workout","routines","history","pbs","body","food","classes","timer","library","settings"], mealSlots: ["Breakfast","AM Snack","Lunch","PM Snack","Dinner"] };
 const bottomNavPages = [
@@ -195,12 +196,13 @@ async function loadCollection(name) {
 
 async function loadAll() {
   await seedExercisesIfNeeded();
-  [exercises, workouts, routines, bodyEntries, mealPlans] = await Promise.all([
+  [exercises, workouts, routines, bodyEntries, mealPlans, classes] = await Promise.all([
     loadCollection("exercises"),
     loadCollection("workouts"),
     loadCollection("routines"),
     loadCollection("bodyEntries"),
-    loadCollection("mealPlans")
+    loadCollection("mealPlans"),
+    loadCollection("classes")
   ]);
   const settingsSnapshot = await getDoc(doc(db, "users", currentUser.uid, "profile", "settings"));
   if (settingsSnapshot.exists()) settings = { ...settings, ...settingsSnapshot.data() };
@@ -208,6 +210,7 @@ async function loadAll() {
   workouts.sort((a, b) => String(b.date || "").localeCompare(String(a.date || "")) || number(b.createdAt?.seconds) - number(a.createdAt?.seconds));
   routines.sort((a, b) => a.name.localeCompare(b.name));
   bodyEntries.sort((a, b) => String(b.date || "").localeCompare(String(a.date || "")));
+  classes.sort((a,b)=>String(a.day||"").localeCompare(String(b.day||"")) || String(a.time||"").localeCompare(String(b.time||"")));
   renderEverything();
 }
 
@@ -220,6 +223,7 @@ function renderEverything() {
   renderRoutines();
   renderHistory();
   renderMealPlanner();
+  renderClasses();
   applySettingsToUI();
   resetManualEntry(true);
 }
@@ -917,6 +921,8 @@ async function saveBody(type) {
   const ref = await addDoc(userCollection("bodyEntries"), payload);
   bodyEntries.unshift({ id: ref.id, ...payload });
   renderBody();
+  $(type === "weight" ? "weightFormCard" : "measureFormCard")?.classList.add("hidden");
+  document.body.classList.remove("modal-open");
   showToast(type === "weight" ? "Weight saved." : "Measurements saved.");
 }
 
@@ -1041,7 +1047,7 @@ async function saveSettings() {
 }
 
 function exportBackup() {
-  const backup = { exportedAt: new Date().toISOString(), exercises, routines, workouts, bodyEntries, mealPlans, settings };
+  const backup = { exportedAt: new Date().toISOString(), exercises, routines, workouts, bodyEntries, mealPlans, classes, settings };
   const blob = new Blob([JSON.stringify(backup, null, 2)], { type: "application/json" });
   const url = URL.createObjectURL(blob);
   const anchor = document.createElement("a");
@@ -1066,7 +1072,7 @@ function renderHistory() {
   if (!workouts.length) { $("historyList").innerHTML = `<p class="muted">No workouts saved yet.</p>`; return; }
   $("historyList").innerHTML = workouts.map(workout => {
     const stats = workoutStats(workout);
-    return `<div class="item history-card compact-history-card"><div class="history-summary-line"><strong>${formatDate(workout.date)}</strong><span>${stats.exerciseCount} exercises</span><span>${stats.setCount} sets</span><span>${stats.reps} reps</span><span>${Math.round(stats.volume).toLocaleString("en-GB")} ${escapeHtml(settings.unit)}</span></div><div class="item-actions four-actions"><button class="secondary small" data-view-workout="${escapeHtml(workout.id)}" type="button">View</button><button class="secondary small" data-edit-workout="${escapeHtml(workout.id)}" type="button">Edit</button><button class="secondary small" data-copy-workout="${escapeHtml(workout.id)}" type="button">Copy</button><button class="danger small" data-delete-workout="${escapeHtml(workout.id)}" type="button">Delete</button></div></div>`;
+    return `<div class="item history-card compact-history-card"><div class="history-summary-line"><strong>${formatDate(workout.date)}</strong><div class="history-inline-stats"><span>${stats.exerciseCount} exercises</span><span>${stats.setCount} sets</span><span>${stats.reps} reps</span><span>${Math.round(stats.volume).toLocaleString("en-GB")} ${escapeHtml(settings.unit)}</span></div></div><div class="item-actions four-actions"><button class="secondary small" data-view-workout="${escapeHtml(workout.id)}" type="button">View</button><button class="secondary small" data-edit-workout="${escapeHtml(workout.id)}" type="button">Edit</button><button class="secondary small" data-copy-workout="${escapeHtml(workout.id)}" type="button">Copy</button><button class="danger small" data-delete-workout="${escapeHtml(workout.id)}" type="button">Delete</button></div></div>`;
   }).join("");
 }
 function workoutDetailHtml(workout){return (workout.exercises||[]).map(entry=>`<div class="item"><div class="item-title">${escapeHtml(entry.exerciseName||exerciseById(entry.exerciseId)?.name||"Exercise")}</div>${(entry.sets||[]).map((set,i)=>`<div class="item-meta">Set ${i+1}: ${set.inputType==="time"?`${set.reps} sec`:set.inputType==="repsOnly"?`${set.reps} reps`:`${set.reps} reps @ ${set.weight||0} ${settings.unit}`}${set.side&&set.side!=="both"?` · ${escapeHtml(set.side)}`:""}${set.notes?` · ${escapeHtml(set.notes)}`:""}</div>`).join("")}</div>`).join("");}
@@ -1075,6 +1081,38 @@ function openWorkoutEdit(id){const workout=workouts.find(w=>w.id===id);if(!worko
 async function saveWorkoutEdit(){const workout=workouts.find(w=>w.id===editingWorkoutId);if(!workout)return;const updated=structuredClone(workout);updated.date=$("editWorkoutDate").value||today();updated.routineName=$("editWorkoutName").value.trim()||null;document.querySelectorAll("[data-edit-set]").forEach(row=>{const [ei,si]=row.dataset.editSet.split(":").map(number);row.querySelectorAll("[data-edit-field]").forEach(input=>{const field=input.dataset.editField;updated.exercises[ei].sets[si][field]=field==="side"?input.value:number(input.value);});});const payload={date:updated.date,routineName:updated.routineName,exercises:updated.exercises,updatedAt:serverTimestamp()};await setDoc(userDoc("workouts",updated.id),payload,{merge:true});const idx=workouts.findIndex(w=>w.id===updated.id);workouts[idx]={...workouts[idx],...payload};$("workoutEditDialog").close();renderHistory();renderPBs();showToast("Workout updated.");}
 async function deleteWorkoutById(id){if(!await askConfirm("Delete workout","This permanently removes the workout and may change your PBs."))return;await deleteDoc(userDoc("workouts",id));workouts=workouts.filter(w=>w.id!==id);renderHistory();renderPBs();renderExerciseLibrary();}
 async function copyWorkoutToRoutine(id){const workout=workouts.find(w=>w.id===id);if(!workout)return;const blocks=(workout.exercises||[]).map((entry,index)=>({id:crypto.randomUUID(),name:`Group ${index+1}`,rounds:Math.max(1,entry.sets?.length||1),restAfterRound:settings.defaultRest,exercises:[{exerciseId:entry.exerciseId,defaultReps:number(entry.sets?.[0]?.reps,10),defaultWeight:number(entry.sets?.[0]?.weight)}]}));const payload={name:`Copy of ${workout.routineName||formatDate(workout.date)}`,day:"",startDate:today(),endDate:"",notes:"Created from workout history",blocks,createdAt:serverTimestamp(),updatedAt:serverTimestamp()};const ref=await addDoc(userCollection("routines"),payload);routines.push({id:ref.id,...payload});routines.sort((a,b)=>a.name.localeCompare(b.name));renderRoutines();showToast("Workout copied to Routines.");}
+
+
+function renderClasses(){
+  const list=$("classList");
+  if(!list)return;
+  if(!classes.length){list.innerHTML=`<div class="empty-state"><span>🧘</span><h3>No classes saved yet</h3><p class="muted">Add local classes you may want to attend and keep the provider booking link handy.</p></div>`;return;}
+  list.innerHTML=classes.map(item=>`<div class="item class-card"><div><div class="item-title">${escapeHtml(item.name||"Class")}</div><div class="item-meta">${escapeHtml(item.day||"")}${item.time?` · ${escapeHtml(item.time)}`:""}${item.provider?` · ${escapeHtml(item.provider)}`:""}</div><div class="item-meta">${escapeHtml(item.location||"")}${item.cost?` · ${escapeHtml(item.cost)}`:""}</div></div><div class="item-actions">${item.bookingUrl?`<a class="secondary small button-link" href="${escapeHtml(item.bookingUrl)}" target="_blank" rel="noopener">Book</a>`:""}<button class="secondary small" data-edit-class="${escapeHtml(item.id)}" type="button">Edit</button><button class="danger small" data-delete-class="${escapeHtml(item.id)}" type="button">Delete</button></div></div>`).join("");
+}
+function openClassDialog(item=null){
+  $("classEditId").value=item?.id||"";
+  $("className").value=item?.name||"";
+  $("classProvider").value=item?.provider||"";
+  $("classDay").value=item?.day||"";
+  $("classTime").value=item?.time||"";
+  $("classDuration").value=item?.duration||"";
+  $("classLocation").value=item?.location||"";
+  $("classCost").value=item?.cost||"";
+  $("classBookingUrl").value=item?.bookingUrl||"";
+  $("classNotes").value=item?.notes||"";
+  $("classDialogTitle").textContent=item?"Edit class":"Add class";
+  $("classDialog").showModal();
+}
+async function saveClass(){
+  const payload={name:$("className").value.trim(),provider:$("classProvider").value.trim(),day:$("classDay").value,time:$("classTime").value,duration:$("classDuration").value.trim(),location:$("classLocation").value.trim(),cost:$("classCost").value.trim(),bookingUrl:$("classBookingUrl").value.trim(),notes:$("classNotes").value.trim(),updatedAt:serverTimestamp()};
+  if(!payload.name) return showToast("Enter a class name.");
+  const id=$("classEditId").value;
+  if(id){await setDoc(userDoc("classes",id),payload,{merge:true});const i=classes.findIndex(x=>x.id===id);classes[i]={...classes[i],...payload};}
+  else{payload.createdAt=serverTimestamp();const ref=await addDoc(userCollection("classes"),payload);classes.push({id:ref.id,...payload});}
+  classes.sort((a,b)=>String(a.day||"").localeCompare(String(b.day||"")) || String(a.time||"").localeCompare(String(b.time||"")));
+  $("classDialog").close();renderClasses();showToast(id?"Class updated.":"Class added.");
+}
+async function deleteClass(id){if(!await askConfirm("Delete class","Remove this saved class?"))return;await deleteDoc(userDoc("classes",id));classes=classes.filter(x=>x.id!==id);renderClasses();}
 
 function mealPlanForWeek(){ return mealPlans.find(p=>p.id===isoDate(mealWeekStart)) || {id:isoDate(mealWeekStart),days:{}}; }
 function renderMealPlanner(){
@@ -1275,8 +1313,8 @@ $("bottomNavChoices")?.addEventListener("change", (event) => {
   }
 });
 
-document.querySelectorAll("[data-settings-panel]").forEach(button=>button.addEventListener("click",()=>{document.querySelectorAll(".settings-detail").forEach(x=>x.classList.add("hidden"));$("settingsPanel"+button.dataset.settingsPanel[0].toUpperCase()+button.dataset.settingsPanel.slice(1))?.classList.remove("hidden");}));
-document.querySelectorAll("[data-close-settings]").forEach(button=>button.addEventListener("click",()=>button.closest(".settings-detail")?.classList.add("hidden")));
+document.querySelectorAll("[data-settings-panel]").forEach(button=>button.addEventListener("click",()=>{document.querySelectorAll(".settings-detail").forEach(x=>x.classList.add("hidden"));const panel=$("settingsPanel"+button.dataset.settingsPanel[0].toUpperCase()+button.dataset.settingsPanel.slice(1));panel?.classList.remove("hidden");document.body.classList.add("modal-open");}));
+document.querySelectorAll("[data-close-settings]").forEach(button=>button.addEventListener("click",()=>{button.closest(".settings-detail")?.classList.add("hidden");document.body.classList.remove("modal-open");}));
 document.querySelectorAll("[data-save-settings]").forEach(button=>button.addEventListener("click",saveSettings));
 $("saveNavigationBtn")?.addEventListener("click",saveSettings);
 $("saveHomeLayoutBtn")?.addEventListener("click",saveSettings);
@@ -1284,12 +1322,16 @@ $("saveMealsSettingBtn")?.addEventListener("click",saveSettings);
 $("settingsLogoutBtn")?.addEventListener("click",()=>signOut(auth));
 $("saveProfileBtn")?.addEventListener("click",async()=>{await updateProfile(currentUser,{displayName:$("displayNameSetting").value.trim()});renderSettingsAccount();showToast("Profile saved.");});
 async function accountCredential(){const password=$("accountCurrentPassword")?.value;if(!password)throw new Error("Enter your current password first.");const credential=EmailAuthProvider.credential(currentUser.email,password);await reauthenticateWithCredential(currentUser,credential);}
-$("changeEmailBtn")?.addEventListener("click",async()=>{try{await accountCredential();const next=$("accountNewEmail").value.trim();if(!next)throw new Error("Enter a new email address.");await updateEmail(currentUser,next);renderSettingsAccount();showToast("Email address updated.");}catch(e){showToast(e.message||"Email could not be changed.");}});
+$("changeEmailBtn")?.addEventListener("click",async()=>{try{await accountCredential();const next=$("accountNewEmail").value.trim();if(!next)throw new Error("Enter a new email address.");await verifyBeforeUpdateEmail(currentUser,next);showToast(`Verification email sent to ${next}. Open the link in that email to complete the change.`);}catch(e){showToast(e.message||"Email could not be changed.");}});
 $("changePasswordBtn")?.addEventListener("click",async()=>{try{await accountCredential();const next=$("accountNewPassword").value;if(next.length<6)throw new Error("New password must be at least 6 characters.");await updatePassword(currentUser,next);showToast("Password updated.");}catch(e){showToast(e.message||"Password could not be changed.");}});
 $("homeTileChoices")?.addEventListener("click",event=>{const btn=event.target.closest("[data-home-move]");if(!btn)return;const selected=selectedHomeTilesFromUI();const row=btn.closest("[data-home-tile]");const id=row.dataset.homeTile;let i=selected.indexOf(id);if(i<0)return;const j=btn.dataset.homeMove==="up"?i-1:i+1;if(j<0||j>=selected.length)return;[selected[i],selected[j]]=[selected[j],selected[i]];settings.homeTiles=selected;renderHomeTileChoices();});
 $("mealSlotChoices")?.addEventListener("click",event=>{const row=event.target.closest("[data-meal-index]");if(!row)return;const i=number(row.dataset.mealIndex);if(event.target.closest("[data-meal-remove]")){settings.mealSlots.splice(i,1);}else{const btn=event.target.closest("[data-meal-move]");if(!btn)return;const j=btn.dataset.mealMove==="up"?i-1:i+1;if(j<0||j>=settings.mealSlots.length)return;[settings.mealSlots[i],settings.mealSlots[j]]=[settings.mealSlots[j],settings.mealSlots[i]];}renderMealSlotChoices();});
 $("addMealSlotBtn")?.addEventListener("click",()=>{const value=$("newMealSlotName").value.trim();if(!value)return;settings.mealSlots=normaliseMealSlots([...settings.mealSlots,value]);$("newMealSlotName").value="";renderMealSlotChoices();});
 document.querySelectorAll("[data-food-view]").forEach(button=>button.addEventListener("click",()=>setFoodView(button.dataset.foodView)));
+$("addClassBtn")?.addEventListener("click",()=>openClassDialog());
+$("classDialogClose")?.addEventListener("click",()=>$("classDialog").close());
+$("saveClassBtn")?.addEventListener("click",saveClass);
+$("classList")?.addEventListener("click",event=>{const edit=event.target.closest("[data-edit-class]");if(edit)return openClassDialog(classes.find(x=>x.id===edit.dataset.editClass));const del=event.target.closest("[data-delete-class]");if(del)return deleteClass(del.dataset.deleteClass);});
 
 // Delegated events
 $("roundExerciseList").onclick = (event) => {
@@ -1435,9 +1477,9 @@ $("bodyHistoryBtn")?.addEventListener("click",()=>{renderBodyHistory();$("bodyHi
 $("bodyHistoryClose")?.addEventListener("click",()=>$("bodyHistoryDialog").close());
 document.querySelectorAll("[data-body-chart]").forEach(button=>button.addEventListener("click",()=>{bodyChartMode=button.dataset.bodyChart;document.querySelectorAll("[data-body-chart]").forEach(b=>b.classList.toggle("active",b===button));$("measurementChartChoice").classList.toggle("hidden",bodyChartMode!=="measurement");renderBodyChart();}));
 $("measurementChartSelect")?.addEventListener("change",renderBodyChart);
-$("showWeightFormBtn")?.addEventListener("click",()=>{ $("weightFormCard").classList.remove("hidden"); $("measureFormCard").classList.add("hidden"); });
-$("showMeasureFormBtn")?.addEventListener("click",()=>{ $("measureFormCard").classList.remove("hidden"); $("weightFormCard").classList.add("hidden"); });
-document.querySelectorAll("[data-close-body-form]").forEach(b=>b.addEventListener("click",()=>b.closest(".card").classList.add("hidden")));
+$("showWeightFormBtn")?.addEventListener("click",()=>{ $("weightFormCard").classList.remove("hidden"); $("measureFormCard").classList.add("hidden"); document.body.classList.add("modal-open"); });
+$("showMeasureFormBtn")?.addEventListener("click",()=>{ $("measureFormCard").classList.remove("hidden"); $("weightFormCard").classList.add("hidden"); document.body.classList.add("modal-open"); });
+document.querySelectorAll("[data-close-body-form]").forEach(b=>b.addEventListener("click",()=>{b.closest(".card").classList.add("hidden");document.body.classList.remove("modal-open");}));
 $("prevMealWeekBtn")?.addEventListener("click",()=>{mealWeekStart=addDays(mealWeekStart,-7);renderMealPlanner();});
 $("nextMealWeekBtn")?.addEventListener("click",()=>{mealWeekStart=addDays(mealWeekStart,7);renderMealPlanner();});
 $("saveMealWeekBtn")?.addEventListener("click",saveMealWeek);
