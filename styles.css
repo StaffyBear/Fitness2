@@ -176,3 +176,31 @@ body{background:linear-gradient(180deg,#edf3f9 0,#f6f8fb 42%,#eef3f8 100%);paddi
   .simple-routine-exercise .remove-block-exercise { grid-column: 2; justify-self: start; }
   .routine-round-preview { grid-template-columns: 1fr; gap: .15rem; }
 }
+
+/* v8.3: round-aware workout history */
+.history-round-card {
+  border: 1px solid var(--line, #d9e3ef);
+  border-radius: 18px;
+  padding: 14px;
+  margin: 0 0 14px;
+  background: #f8fbff;
+}
+.history-round-card h3 { margin: 0 0 12px; }
+.history-round-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+.history-exercise-card {
+  border: 1px solid var(--line, #d9e3ef);
+  border-radius: 14px;
+  padding: 12px;
+  background: #fff;
+  min-width: 0;
+}
+.history-set-list { margin-top: 6px; }
+.history-set-list .item-meta { line-height: 1.5; overflow-wrap: anywhere; }
+@media (max-width: 560px) {
+  .history-round-grid { grid-template-columns: 1fr; }
+  .history-round-card { padding: 11px; }
+}

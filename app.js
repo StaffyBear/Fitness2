@@ -472,7 +472,7 @@ async function savePairWorkout() {
     if (!grouped.has(key)) grouped.set(key, { exerciseId: entry.exerciseId, exerciseName: entry.exerciseName, sets: [] });
     grouped.get(key).sets.push({ setNumber: grouped.get(key).sets.length + 1, reps: entry.reps, weight: entry.weight, inputType: entry.inputType, side: entry.side, notes: entry.notes, completedAt: entry.completedAt, isPB: entry.isPB, roundNumber: round.roundNumber });
   }));
-  const workout = { date: $("workoutDate").value || today(), source: activeRoutineSession ? "routine" : "manual", routineId: activeRoutineSession?.routineId || null, routineName: activeRoutineSession?.routineName || null, notes: $("roundNotes")?.value.trim() || "", exercises: [...grouped.values()], createdAt: serverTimestamp() };
+  const workout = { date: $("workoutDate").value || today(), source: activeRoutineSession ? "routine" : "manual", routineId: activeRoutineSession?.routineId || null, routineName: activeRoutineSession?.routineName || null, notes: $("roundNotes")?.value.trim() || "", exercises: [...grouped.values()], rounds: workoutRoundsPayload(), createdAt: serverTimestamp() };
   const ref = await addDoc(userCollection("workouts"), workout);
   workouts.unshift({ id: ref.id, ...workout, createdAt: { seconds: Math.floor(Date.now()/1000) } });
   activeRoutineSession = null;
@@ -1114,6 +1114,68 @@ function exportBackup() {
 
 // Timer
 
+
+function workoutRounds(workout) {
+  if (Array.isArray(workout.rounds) && workout.rounds.length) {
+    return workout.rounds.map((round, index) => ({
+      roundNumber: number(round.roundNumber, index + 1),
+      exercises: (round.exercises || []).map((entry) => ({
+        exerciseId: entry.exerciseId,
+        exerciseName: entry.exerciseName || exerciseById(entry.exerciseId)?.name || "Exercise",
+        sets: entry.sets || []
+      }))
+    }));
+  }
+
+  const entries = (workout.exercises || []).map((entry, exerciseIndex) => {
+    const roundValues = (entry.sets || []).map(set => number(set.roundNumber, 0)).filter(Boolean);
+    const roundNumber = roundValues.length ? roundValues[0] : 0;
+    return { ...entry, exerciseIndex, roundNumber };
+  });
+
+  const hasRoundMetadata = entries.some(entry => entry.roundNumber > 0);
+  if (hasRoundMetadata) {
+    const grouped = new Map();
+    entries.forEach(entry => {
+      const key = entry.roundNumber || (entry.exerciseIndex + 1);
+      if (!grouped.has(key)) grouped.set(key, []);
+      grouped.get(key).push(entry);
+    });
+    const rounds = [...grouped.entries()].sort((a,b)=>a[0]-b[0]).map(([roundNumber, exercises]) => ({ roundNumber, exercises }));
+    // Older builds sometimes saved every exercise as its own round. When every round
+    // contains exactly one exercise, pair consecutive exercises as a compatibility repair.
+    if (rounds.length > 1 && rounds.every(round => round.exercises.length === 1) && entries.length % 2 === 0) {
+      const paired = [];
+      for (let i = 0; i < entries.length; i += 2) paired.push({ roundNumber: (i / 2) + 1, exercises: entries.slice(i, i + 2) });
+      return paired;
+    }
+    return rounds;
+  }
+
+  // Legacy workouts without any round metadata: preserve exercise order and pair them.
+  const legacy = [];
+  for (let i = 0; i < entries.length; i += 2) legacy.push({ roundNumber: (i / 2) + 1, exercises: entries.slice(i, i + 2) });
+  return legacy;
+}
+
+function workoutRoundsPayload() {
+  const roundMap = new Map();
+  manualRounds.forEach(round => {
+    const roundNumber = number(round.roundNumber, 1);
+    if (!roundMap.has(roundNumber)) roundMap.set(roundNumber, new Map());
+    const exerciseMap = roundMap.get(roundNumber);
+    (round.entries || []).forEach(entry => {
+      const key = `${entry.exerciseId}|${entry.side || "both"}`;
+      if (!exerciseMap.has(key)) exerciseMap.set(key, { exerciseId: entry.exerciseId, exerciseName: entry.exerciseName, sets: [] });
+      exerciseMap.get(key).sets.push({ ...entry, roundNumber });
+    });
+  });
+  return [...roundMap.entries()].sort((a,b)=>a[0]-b[0]).map(([roundNumber, exerciseMap]) => ({
+    roundNumber,
+    exercises: [...exerciseMap.values()]
+  }));
+}
+
 function workoutStats(workout) {
   const exerciseCount = (workout.exercises || []).length;
   const sets = (workout.exercises || []).flatMap(entry => entry.sets || []);
@@ -1130,12 +1192,15 @@ function renderHistory() {
     return `<div class="item history-card compact-history-card"><div class="history-summary-line"><strong>${formatDate(workout.date)}</strong><div class="history-inline-stats"><span>${stats.exerciseCount} exercises</span><span>${stats.setCount} sets</span><span>${stats.reps} reps</span><span>${Math.round(stats.volume).toLocaleString("en-GB")} ${escapeHtml(settings.unit)}</span></div></div><div class="item-actions four-actions"><button class="secondary small" data-view-workout="${escapeHtml(workout.id)}" type="button">View</button><button class="secondary small" data-edit-workout="${escapeHtml(workout.id)}" type="button">Edit</button><button class="secondary small" data-copy-workout="${escapeHtml(workout.id)}" type="button">Copy</button><button class="danger small" data-delete-workout="${escapeHtml(workout.id)}" type="button">Delete</button></div></div>`;
   }).join("");
 }
-function workoutDetailHtml(workout){return (workout.exercises||[]).map(entry=>`<div class="item"><div class="item-title">${escapeHtml(entry.exerciseName||exerciseById(entry.exerciseId)?.name||"Exercise")}</div>${(entry.sets||[]).map((set,i)=>`<div class="item-meta">Set ${i+1}: ${set.inputType==="time"?`${set.reps} sec`:set.inputType==="repsOnly"?`${set.reps} reps`:`${set.reps} reps @ ${set.weight||0} ${settings.unit}`}${set.side&&set.side!=="both"?` · ${escapeHtml(set.side)}`:""}${set.notes?` · ${escapeHtml(set.notes)}`:""}</div>`).join("")}</div>`).join("");}
+function workoutDetailHtml(workout) {
+  const rounds = workoutRounds(workout);
+  return rounds.map((round, roundIndex) => `<section class="history-round-card"><h3>Round ${roundIndex + 1}</h3><div class="history-round-grid">${(round.exercises || []).map(entry => `<article class="history-exercise-card"><div class="item-title">${escapeHtml(entry.exerciseName || exerciseById(entry.exerciseId)?.name || "Exercise")}</div><div class="history-set-list">${(entry.sets || []).map((set, i) => `<div class="item-meta">Set ${i + 1}: ${set.inputType === "time" ? `${set.reps} sec` : set.inputType === "repsOnly" ? `${set.reps} reps` : `${set.reps} reps @ ${set.weight || 0} ${settings.unit}`}${set.side && set.side !== "both" ? ` · ${escapeHtml(set.side)}` : ""}${set.notes ? ` · ${escapeHtml(set.notes)}` : ""}</div>`).join("")}</div></article>`).join("")}</div></section>`).join("");
+}
 function openWorkoutHistory(id){const workout=workouts.find(w=>w.id===id);if(!workout)return;$("historyDialogTitle").textContent=workout.routineName||`Workout — ${formatDate(workout.date)}`;$("historyDialogBody").innerHTML=workoutDetailHtml(workout);$("historyDialog").showModal();}
 function openWorkoutEdit(id){const workout=workouts.find(w=>w.id===id);if(!workout)return;editingWorkoutId=id;$("workoutEditBody").innerHTML=`<label>Date<input id="editWorkoutDate" type="date" value="${escapeHtml(workout.date||today())}"/></label><label>Workout name<input id="editWorkoutName" value="${escapeHtml(workout.routineName||"")}" placeholder="Optional name"/></label>${(workout.exercises||[]).map((entry,ei)=>`<div class="edit-exercise-block"><h4>${escapeHtml(entry.exerciseName||"Exercise")}</h4>${(entry.sets||[]).map((set,si)=>`<div class="edit-set-row" data-edit-set="${ei}:${si}"><label>Reps/sec<input data-edit-field="reps" inputmode="decimal" value="${number(set.reps)}"/></label><label>Weight<input data-edit-field="weight" inputmode="decimal" value="${number(set.weight)}"/></label><label>Side<select data-edit-field="side"><option value="both" ${(set.side||"both")==="both"?"selected":""}>Both</option><option value="left" ${set.side==="left"?"selected":""}>Left</option><option value="right" ${set.side==="right"?"selected":""}>Right</option></select></label></div>`).join("")}</div>`).join("")}`;$("workoutEditDialog").showModal();}
 async function saveWorkoutEdit(){const workout=workouts.find(w=>w.id===editingWorkoutId);if(!workout)return;const updated=structuredClone(workout);updated.date=$("editWorkoutDate").value||today();updated.routineName=$("editWorkoutName").value.trim()||null;document.querySelectorAll("[data-edit-set]").forEach(row=>{const [ei,si]=row.dataset.editSet.split(":").map(number);row.querySelectorAll("[data-edit-field]").forEach(input=>{const field=input.dataset.editField;updated.exercises[ei].sets[si][field]=field==="side"?input.value:number(input.value);});});const payload={date:updated.date,routineName:updated.routineName,exercises:updated.exercises,updatedAt:serverTimestamp()};await setDoc(userDoc("workouts",updated.id),payload,{merge:true});const idx=workouts.findIndex(w=>w.id===updated.id);workouts[idx]={...workouts[idx],...payload};$("workoutEditDialog").close();renderHistory();renderPBs();showToast("Workout updated.");}
 async function deleteWorkoutById(id){if(!await askConfirm("Delete workout","This permanently removes the workout and may change your PBs."))return;await deleteDoc(userDoc("workouts",id));workouts=workouts.filter(w=>w.id!==id);renderHistory();renderPBs();renderExerciseLibrary();}
-async function copyWorkoutToRoutine(id){const workout=workouts.find(w=>w.id===id);if(!workout)return;const blocks=(workout.exercises||[]).map((entry,index)=>({id:crypto.randomUUID(),name:`Group ${index+1}`,rounds:Math.max(1,entry.sets?.length||1),restAfterRound:settings.defaultRest,exercises:[{exerciseId:entry.exerciseId,defaultReps:number(entry.sets?.[0]?.reps,10),defaultWeight:number(entry.sets?.[0]?.weight)}]}));const payload={name:`Copy of ${workout.routineName||formatDate(workout.date)}`,day:"",startDate:today(),endDate:"",notes:"Created from workout history",blocks,createdAt:serverTimestamp(),updatedAt:serverTimestamp()};const ref=await addDoc(userCollection("routines"),payload);routines.push({id:ref.id,...payload});routines.sort((a,b)=>a.name.localeCompare(b.name));renderRoutines();showToast("Workout copied to Routines.");}
+async function copyWorkoutToRoutine(id){const workout=workouts.find(w=>w.id===id);if(!workout)return;const blocks=workoutRounds(workout).map((round,index)=>({id:crypto.randomUUID(),order:index,name:`Round ${index+1}`,rounds:1,restAfterRound:0,exercises:(round.exercises||[]).map(entry=>({exerciseId:entry.exerciseId}))}));const payload={name:`Copy of ${workout.routineName||formatDate(workout.date)}`,day:"",blocks,createdAt:serverTimestamp(),updatedAt:serverTimestamp()};const ref=await addDoc(userCollection("routines"),payload);routines.push({id:ref.id,...payload});routines.sort((a,b)=>a.name.localeCompare(b.name));renderRoutines();showToast("Workout copied to Routines with its round groupings preserved.");}
 
 
 function renderClasses(){
@@ -1540,31 +1605,19 @@ $("prevMealWeekBtn")?.addEventListener("click",()=>{mealWeekStart=addDays(mealWe
 $("nextMealWeekBtn")?.addEventListener("click",()=>{mealWeekStart=addDays(mealWeekStart,7);renderMealPlanner();});
 $("saveMealWeekBtn")?.addEventListener("click",saveMealWeek);
 
-const bodyDateInput = $("bodyDate");
-if (bodyDateInput) bodyDateInput.value = today();
-
-const measureDateInput = $("measureDate");
-if (measureDateInput) measureDateInput.value = today();
-
-const routineStartDateInput = $("routineStartDate");
-if (routineStartDateInput) routineStartDateInput.value = today();
-
+if ($("bodyDate")) $("bodyDate").value = today();
+if ($("measureDate")) $("measureDate").value = today();
+if ($("routineStartDate")) $("routineStartDate").value = today();
 renderTimer();
 
 onAuthStateChanged(auth, async (user) => {
   currentUser = user;
-const authMessage = $("authMessage");
-if (authMessage) authMessage.textContent = "";
-
-$("authPanel")?.classList.toggle("hidden", Boolean(user));
-$("appPanel")?.classList.toggle("hidden", !user);
-$("logoutBtn")?.classList.add("hidden");
-$("userEmail")?.classList.add("hidden");
-
-const userEmail = $("userEmail");
-if (userEmail) {
-  userEmail.textContent = user ? user.email : "Not signed in";
-}
+  if ($("authMessage")) $("authMessage").textContent = "";
+  $("authPanel")?.classList.toggle("hidden", Boolean(user));
+  $("appPanel")?.classList.toggle("hidden", !user);
+  $("logoutBtn")?.classList.add("hidden");
+  $("userEmail")?.classList.add("hidden");
+  if ($("userEmail")) $("userEmail").textContent = user ? user.email : "Not signed in";
   renderSettingsAccount();
   if (!user) return;
   try {
