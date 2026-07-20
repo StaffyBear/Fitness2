@@ -1,35 +1,3 @@
-# Frever Fitness v6.3 Foundation
+# Frever Fitness v11.0
 
-This is the flat-page test build for GitHub Pages and custom domains.
-
-## Upload
-
-Upload the **contents** of this folder directly to the root of the `Fitness2` repository. Keep the repository CNAME file.
-
-Expected root files include:
-
-- `index.html`
-- `home.html`
-- `workout.html`
-- `history.html`
-- `routines.html`
-- `pbs.html`
-- `body.html`
-- `food.html`
-- `timer.html`
-- `exercises.html`
-- `settings.html`
-- `app.js`
-- `styles.css`
-- `assets/frever-logo.svg`
-
-## What changed in v6.3
-
-- All CSS, JavaScript and image references use explicit relative paths.
-- Page navigation preserves a GitHub project subfolder during testing.
-- The same package works at `staffybear.github.io/Fitness2/`, `fitnesstest.libbyyakas.com`, and the production custom domain.
-- Navy and cool-blue Frever Fitness theme.
-- Configurable fixed bottom navigation retained.
-- Existing Firebase project and data retained.
-
-No Firebase console changes are required.
+Upload the contents of this folder to the repository root. Keep the existing CNAME file.
