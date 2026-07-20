@@ -60,7 +60,7 @@ let workoutSessionPausedAt = null;
 let workoutSessionTicker = null;
 let selectedExerciseInfoId = null;
 let mealWeekStart = startOfWeek(new Date());
-let settings = { unit: "kg", weightMode: "total", measureUnit: "cm", defaultRest: 60, autoRest: false, defaultReps: 10, defaultSets: 3, heightCm: 0, bottomNav: ["workout", "history", "pbs", "body"], homeTiles: ["workout","routines","history","pbs","body","food","classes","timer","library","settings"], mealSlots: ["Breakfast","AM Snack","Lunch","PM Snack","Dinner"] };
+let settings = { unit: "kg", weightMode: "total", measureUnit: "cm", defaultRest: 60, autoRest: false, defaultReps: 10, defaultSets: 3, showWorkoutTimer: true, workoutStyle: "standard", heightCm: 0, bottomNav: ["workout", "history", "pbs", "body"], homeTiles: ["workout","routines","history","pbs","body","food","classes","timer","library","settings"], mealSlots: ["Breakfast","AM Snack","Lunch","PM Snack","Dinner"] };
 const bottomNavPages = [
   { id: "workout", label: "Workout", icon: "🏋️" },
   { id: "history", label: "History", icon: "🕘" },
@@ -93,6 +93,8 @@ let editingRoutineId = null;
 let routineDraftBlocks = [];
 let activeRoutineSession = null;
 let confirmResolver = null;
+let workoutDraftDirty = false;
+let timedExerciseTicker = null;
 
 const starterExercises = [
   { id: "leg-press", name: "Leg Press", category: "Legs", mode: "standard", inputType: "repsWeight", equipment: "Machine", defaultReps: 10, defaultWeight: 0, weightStep: 5, restSeconds: 60 },
@@ -168,10 +170,113 @@ function sortClasses(){ classes.sort((a,b)=>(dayOrder[a.day]||99)-(dayOrder[b.da
 function sortedRoutines(){ const list=[...routines]; if(routineSortMode==="name") return list.sort((a,b)=>String(a.name||"").localeCompare(String(b.name||""))); if(routineSortMode==="updated") return list.sort((a,b)=>number(b.updatedAt?.seconds)-number(a.updatedAt?.seconds)); if(routineSortMode==="last") return list.sort((a,b)=>dateValue(b.lastPerformedDate)-dateValue(a.lastPerformedDate)); return list.sort((a,b)=>(dayOrder[a.day]||99)-(dayOrder[b.day]||99)||String(a.name||"").localeCompare(String(b.name||""))); }
 function workoutElapsedMs(){ if(!workoutSessionStartedAt)return 0; if(workoutSessionPausedAt)return workoutSessionElapsedBeforePause; return workoutSessionElapsedBeforePause+(Date.now()-workoutSessionStartedAt); }
 function formatDuration(ms){ const total=Math.floor(ms/1000),h=Math.floor(total/3600),m=Math.floor((total%3600)/60),sec=total%60; return h?`${h}:${String(m).padStart(2,"0")}:${String(sec).padStart(2,"0")}`:`${m}:${String(sec).padStart(2,"0")}`; }
-function renderWorkoutSessionTimer(){ const el=$("workoutSessionTime"); if(el)el.textContent=formatDuration(workoutElapsedMs()); }
+function renderWorkoutSessionTimer(){ const wrap=document.querySelector(".workout-session-clock"); if(wrap)wrap.classList.toggle("hidden",settings.showWorkoutTimer===false); const el=$("workoutSessionTime"); if(el)el.textContent=formatDuration(workoutElapsedMs()); }
 function startWorkoutSessionTimer(){ if(workoutSessionStartedAt&&!workoutSessionPausedAt)return; if(workoutSessionPausedAt){workoutSessionStartedAt=Date.now();workoutSessionPausedAt=null;} else {workoutSessionStartedAt=Date.now();workoutSessionElapsedBeforePause=0;} clearInterval(workoutSessionTicker);workoutSessionTicker=setInterval(renderWorkoutSessionTimer,1000);renderWorkoutSessionTimer();localStorage.setItem("freverActiveWorkoutStart",String(Date.now()-workoutSessionElapsedBeforePause)); }
 function stopWorkoutSessionTimer(){ const ms=workoutElapsedMs();clearInterval(workoutSessionTicker);workoutSessionStartedAt=null;workoutSessionPausedAt=null;workoutSessionElapsedBeforePause=0;localStorage.removeItem("freverActiveWorkoutStart");renderWorkoutSessionTimer();return ms; }
 function ensureWorkoutTimer(){ if(!workoutSessionStartedAt){const saved=number(localStorage.getItem("freverActiveWorkoutStart"));if(saved){workoutSessionStartedAt=Date.now();workoutSessionElapsedBeforePause=Math.max(0,Date.now()-saved);}else startWorkoutSessionTimer();} renderWorkoutSessionTimer(); }
+
+
+function activeWorkoutStorageKey() {
+  return currentUser ? `freverActiveWorkout:${currentUser.uid}` : "freverActiveWorkout";
+}
+function serialisableGroupExercise(item) {
+  const copy = { ...item };
+  delete copy.timedStartedAt;
+  return copy;
+}
+function persistActiveWorkoutDraft() {
+  if (!currentUser || !workoutDraftDirty) return;
+  syncManualGroupFromDOM();
+  const payload = {
+    version: 10,
+    savedAt: Date.now(),
+    date: $("workoutDate")?.value || today(),
+    notes: $("roundNotes")?.value || "",
+    manualRounds,
+    manualRoundNumber,
+    manualGroupExercises: manualGroupExercises.map(serialisableGroupExercise),
+    activeRoutineSession,
+    workoutSessionStartedAt,
+    workoutSessionElapsedBeforePause,
+    timerOrigin: number(localStorage.getItem("freverActiveWorkoutStart")),
+    workoutStyle: $("workoutStyleSelect")?.value || settings.workoutStyle || "standard"
+  };
+  localStorage.setItem(activeWorkoutStorageKey(), JSON.stringify(payload));
+  renderBottomNav();
+}
+function clearActiveWorkoutDraft() {
+  if (currentUser) localStorage.removeItem(activeWorkoutStorageKey());
+  workoutDraftDirty = false;
+  renderBottomNav();
+}
+function restoreActiveWorkoutDraft() {
+  if (!currentUser) return false;
+  let draft;
+  try { draft = JSON.parse(localStorage.getItem(activeWorkoutStorageKey()) || "null"); } catch { draft = null; }
+  if (!draft || !Array.isArray(draft.manualGroupExercises)) return false;
+  manualRounds = Array.isArray(draft.manualRounds) ? draft.manualRounds : [];
+  manualRoundNumber = Math.max(1, number(draft.manualRoundNumber, 1));
+  manualGroupExercises = draft.manualGroupExercises.map(item => ({ ...item, completedSets: Array.isArray(item.completedSets) ? item.completedSets : [] }));
+  activeRoutineSession = draft.activeRoutineSession || null;
+  workoutDraftDirty = true;
+  if ($("workoutDate")) $("workoutDate").value = draft.date || today();
+  if ($("roundNotes")) $("roundNotes").value = draft.notes || "";
+  if ($("workoutStyleSelect")) $("workoutStyleSelect").value = draft.workoutStyle || settings.workoutStyle || "standard";
+  const origin = number(draft.timerOrigin);
+  if (origin) {
+    localStorage.setItem("freverActiveWorkoutStart", String(origin));
+    workoutSessionStartedAt = Date.now();
+    workoutSessionElapsedBeforePause = Math.max(0, Date.now() - origin);
+    clearInterval(workoutSessionTicker);
+    workoutSessionTicker = setInterval(renderWorkoutSessionTimer, 1000);
+  }
+  renderManualRound();
+  renderRoutineSession();
+  renderWorkoutSessionTimer();
+  renderBottomNav();
+  return true;
+}
+function markWorkoutDraftDirty() {
+  workoutDraftDirty = true;
+  persistActiveWorkoutDraft();
+}
+function updateTimedExerciseDisplays() {
+  let anyRunning = false;
+  manualGroupExercises.forEach(item => {
+    if (!item.timedRunning || !item.timedStartedAt) return;
+    anyRunning = true;
+    const elapsed = number(item.timedElapsedMs) + (Date.now() - item.timedStartedAt);
+    item.reps = Math.max(0, Math.floor(elapsed / 1000));
+    const input = document.querySelector(`[data-group-uid="${item.uid}"] [data-group-field="reps"]`);
+    if (input) input.value = String(item.reps);
+    const display = document.querySelector(`[data-group-uid="${item.uid}"] [data-timed-display]`);
+    if (display) display.textContent = formatDuration(elapsed);
+  });
+  if (!anyRunning) { clearInterval(timedExerciseTicker); timedExerciseTicker = null; }
+}
+function toggleTimedExercise(uid) {
+  const item = manualGroupExercises.find(entry => entry.uid === uid);
+  if (!item) return;
+  if (item.timedRunning) {
+    item.timedElapsedMs = number(item.timedElapsedMs) + (Date.now() - number(item.timedStartedAt));
+    item.timedStartedAt = null;
+    item.timedRunning = false;
+    item.reps = Math.floor(number(item.timedElapsedMs) / 1000);
+  } else {
+    item.timedElapsedMs = Math.max(number(item.timedElapsedMs), number(item.reps) * 1000);
+    item.timedStartedAt = Date.now();
+    item.timedRunning = true;
+    if (!timedExerciseTicker) timedExerciseTicker = setInterval(updateTimedExerciseDisplays, 250);
+  }
+  markWorkoutDraftDirty();
+  renderManualRound();
+}
+function resetTimedExercise(uid) {
+  const item = manualGroupExercises.find(entry => entry.uid === uid);
+  if (!item) return;
+  item.timedRunning = false; item.timedStartedAt = null; item.timedElapsedMs = 0; item.reps = 0;
+  markWorkoutDraftDirty(); renderManualRound();
+}
 
 function pageTitle(name){ return ({dashboard:"Dashboard",workout:"Workout",routines:"Routines",history:"Workout history",pbs:"Personal bests",body:"Body tracking",food:"Meal planner",classes:"Local classes",timer:"Timer",library:"Exercises",settings:"Settings"})[name] || "Frever Fitness"; }
 const pageFiles = {dashboard:"home.html",workout:"workout.html",routines:"routines.html",history:"history.html",pbs:"pbs.html",body:"body.html",food:"food.html",classes:"classes.html",timer:"timer.html",library:"exercises.html",settings:"settings.html"};
@@ -265,6 +370,7 @@ async function loadAll() {
   sortClasses();
   sortWorkoutsByDate();
   renderEverything();
+  restoreActiveWorkoutDraft();
 }
 
 function renderEverything() {
@@ -290,7 +396,8 @@ function blankGroupExercise(exerciseId = null) {
     weight: number(exercise?.defaultWeight, 0),
     side: "both",
     targetSets: Math.max(1, number(settings.defaultSets, 3)),
-    completedSets: []
+    completedSets: [],
+    timedRunning: false, timedStartedAt: null, timedElapsedMs: 0
   };
   return exercise ? applyLatestPerformance(item, exercise.id) : item;
 }
@@ -332,13 +439,13 @@ function groupExerciseCard(item, index) {
       <label class="grow">Exercise ${index + 1}<select data-group-field="exerciseId">${exercises.map(ex => `<option value="${escapeHtml(ex.id)}" ${ex.id === item.exerciseId ? "selected" : ""}>${escapeHtml(ex.name)}</option>`).join("")}</select></label>
       ${manualGroupExercises.length > 1 ? `<button class="ghost small" data-remove-group-exercise type="button">Remove</button>` : ""}
     </div>
-    ${latestCompletedSetForExercise(exercise.id) ? `<p class="last-performance">Last: ${latestCompletedSetForExercise(exercise.id).inputType === "time" ? `${latestCompletedSetForExercise(exercise.id).reps}s` : latestCompletedSetForExercise(exercise.id).inputType === "repsOnly" ? `${latestCompletedSetForExercise(exercise.id).reps} reps` : `${latestCompletedSetForExercise(exercise.id).weight}${settings.unit} × ${latestCompletedSetForExercise(exercise.id).reps}`}</p>` : `<p class="last-performance muted">No previous result</p>`}
     ${sideOptions(exercise, item.side)}
     <div class="compact-control-grid">
       <div class="mini-stepper"><span>${inputType === "time" ? "SECONDS" : "REPS"}</span><div><button data-group-adjust="reps" data-delta="-1" type="button">▼</button><input data-group-field="reps" inputmode="numeric" value="${number(item.reps,10)}"/><button data-group-adjust="reps" data-delta="1" type="button">▲</button></div></div>
       <div class="mini-stepper ${inputType !== "repsWeight" ? "hidden" : ""}"><span>WEIGHT (${escapeHtml(settings.unit)})</span><div><button data-group-adjust="weight" data-delta="-1" type="button">▼</button><input data-group-field="weight" inputmode="decimal" value="${number(item.weight)}"/><button data-group-adjust="weight" data-delta="1" type="button">▲</button></div></div>
     </div>
-    <div class="exercise-search-row"><input data-exercise-filter placeholder="Search exercises…" aria-label="Search exercises"/><button class="ghost small" data-view-exercise type="button">View exercise</button></div>
+    ${inputType === "time" ? `<div class="timed-exercise-tools"><strong data-timed-display>${formatDuration(number(item.timedElapsedMs) + (item.timedRunning && item.timedStartedAt ? Date.now()-item.timedStartedAt : 0))}</strong><button class="secondary small" data-timed-toggle type="button">${item.timedRunning ? "Pause" : "Start stopwatch"}</button><button class="ghost small" data-timed-reset type="button">Reset</button><span class="muted">or enter seconds above</span></div>` : ""}
+    <div class="exercise-card-actions"><button class="ghost small" data-view-exercise type="button">Exercise info</button></div>
     <div class="set-target-row"><button class="secondary small" data-save-single-set type="button">✓ Save set</button></div>
     <div class="inline-set-list">${completed.map((set, setIndex) => `<button class="saved-set-chip" data-edit-inline-set="${setIndex}" type="button">Set ${setIndex+1}: ${set.inputType === "time" ? `${set.reps}s` : set.inputType === "repsOnly" ? `${set.reps} reps` : `${set.reps} × ${set.weight}${settings.unit}`}${set.side !== "both" ? ` · ${set.side}` : ""} ✎</button>`).join("")}</div>
   </article>`;
@@ -389,6 +496,7 @@ function calculatePBForSet(exerciseId, set) {
 }
 
 function saveOneSet(uid) {
+  workoutDraftDirty = true;
   ensureWorkoutTimer();
   syncManualGroupFromDOM();
   const item = manualGroupExercises.find(entry => entry.uid === uid);
@@ -400,10 +508,12 @@ function saveOneSet(uid) {
   manualRounds.push({ roundNumber: manualRoundNumber, passNumber: item.completedSets.length, entries: [set] });
   if (item.completedSets.length >= item.targetSets) item.targetSets = item.completedSets.length;
   renderManualRound();
+  persistActiveWorkoutDraft();
   if (settings.autoRest) startAutomaticRest(exerciseById(item.exerciseId)?.restSeconds || settings.defaultRest);
 }
 
 function saveCurrentPass() {
+  workoutDraftDirty = true;
   syncManualGroupFromDOM();
   const entries = [];
   manualGroupExercises.forEach(item => {
@@ -417,16 +527,20 @@ function saveCurrentPass() {
   if (!entries.length) return showToast("All planned sets are already saved. Add another set or start the next round.");
   manualRounds.push({ roundNumber: manualRoundNumber, passNumber: Math.max(...manualGroupExercises.map(item => item.completedSets.length)), entries });
   renderManualRound();
+  persistActiveWorkoutDraft();
   if (settings.autoRest) startAutomaticRest(Math.max(...entries.map(entry => exerciseById(entry.exerciseId)?.restSeconds || settings.defaultRest)));
 }
 
 function addManualExercise() {
+  workoutDraftDirty = true;
   syncManualGroupFromDOM();
   manualGroupExercises.push(blankGroupExercise(exercises.find(ex => !manualGroupExercises.some(item => item.exerciseId === ex.id))?.id || exercises[0]?.id));
   renderManualRound();
+  persistActiveWorkoutDraft();
 }
 
 function startNextRound() {
+  workoutDraftDirty = true;
   if (activeRoutineSession?.sequence) {
     const nextIndex = activeRoutineSession.currentBlockIndex + 1;
     if (nextIndex >= activeRoutineSession.sequence.length) {
@@ -502,6 +616,7 @@ async function savePairWorkout() {
   workouts.unshift({ id: ref.id, ...workout, createdAt: { seconds: Math.floor(Date.now()/1000) } });
   activeRoutineSession = null;
   stopWorkoutSessionTimer();
+  clearActiveWorkoutDraft();
   resetManualEntry(true);
   renderPBs(); renderHistory(); renderExerciseLibrary(); renderBodyChart();
   showToast("Workout saved.");
@@ -841,6 +956,7 @@ function startRoutine(id) {
   const routine = routines.find((entry) => entry.id === id);
   if (!routine) return;
   startWorkoutSessionTimer();
+  workoutDraftDirty = true;
   activeRoutineSession = {
     routineId: routine.id,
     routineName: routine.name,
@@ -859,6 +975,7 @@ $("workoutDate").value = today();
   $("manualWorkoutCard")?.classList.remove("hidden");
   $("manualSetCard")?.classList.remove("hidden");
   loadRoutineRound(0);
+  persistActiveWorkoutDraft();
   switchTab("workout");
   showToast(`${routine.name} loaded. Save each set, then use Next round.`);
 }
@@ -1052,7 +1169,7 @@ function renderBottomNav() {
   if (!$("bottomNav")) return;
   const selected = normaliseBottomNav(settings.bottomNav);
   const pages = [{ id: "dashboard", label: "Home", icon: "⌂" }, ...selected.map(id => bottomNavPages.find(page => page.id === id)).filter(Boolean)];
-  $("bottomNav").innerHTML = pages.map(page => `<button data-tab="${page.id}" type="button"><span>${page.icon}</span><small>${page.label}</small></button>`).join("");
+  $("bottomNav").innerHTML = pages.map(page => `<button data-tab="${page.id}" type="button" class="${page.id === "workout" && workoutDraftDirty ? "has-active-workout" : ""}"><span>${page.icon}</span><small>${page.label}${page.id === "workout" && workoutDraftDirty ? " •" : ""}</small></button>`).join("");
   $("bottomNav").querySelectorAll("[data-tab]").forEach(button => button.onclick = () => openPage(button.dataset.tab));
   const active = document.querySelector(".panel.active")?.id || "dashboard";
   $("bottomNav").querySelectorAll("[data-tab]").forEach(button => button.classList.toggle("active", button.dataset.tab === active));
@@ -1097,6 +1214,7 @@ function applySettingsToUI() {
   $("defaultRestSetting").value = String(settings.defaultRest);
   $("defaultRepsSetting").value = String(settings.defaultReps ?? 10);
   $("defaultSetsSetting").value = String(settings.defaultSets ?? 3);
+  if ($("showWorkoutTimerSetting")) $("showWorkoutTimerSetting").checked = settings.showWorkoutTimer !== false;
   $("heightSetting").value = settings.heightCm ? String(settings.heightCm) : "";
   $("weightUnitLabel").textContent = settings.unit;
   $("weightUnitText").textContent = settings.unit;
@@ -1121,6 +1239,8 @@ async function saveSettings() {
     defaultRest: number($("defaultRestSetting").value, 60),
     defaultReps: Math.max(1, number($("defaultRepsSetting").value, 10)),
     defaultSets: Math.max(1, number($("defaultSetsSetting").value, 3)),
+    showWorkoutTimer: $("showWorkoutTimerSetting") ? $("showWorkoutTimerSetting").checked : settings.showWorkoutTimer !== false,
+    workoutStyle: $("workoutStyleSelect")?.value || settings.workoutStyle || "standard",
     heightCm: Math.max(0, number($("heightSetting").value, 0)),
     bottomNav: selectedBottomNavFromUI(),
     homeTiles: selectedHomeTilesFromUI().length ? selectedHomeTilesFromUI() : normaliseHomeTiles(settings.homeTiles),
@@ -1445,7 +1565,7 @@ $("addRoundExerciseBtn").onclick = addManualExercise;
 if ($("savePassBtn")) $("savePassBtn").onclick = saveCurrentPass;
 $("addRoundBtn").onclick = startNextRound;
 $("finishPairWorkoutBtn").onclick = savePairWorkout;
-$("clearPairWorkoutBtn").onclick = () => resetManualEntry(true);
+$("clearPairWorkoutBtn").onclick = async () => { if (workoutDraftDirty && !await askConfirm("Discard workout?", "This removes the active workout draft and its unsaved sets.")) return; clearActiveWorkoutDraft(); stopWorkoutSessionTimer(); activeRoutineSession=null; resetManualEntry(true); };
 $("toggleRoundNotesBtn").onclick = () => $("roundNotesWrap").classList.toggle("hidden");
 $("saveWeightBtn").onclick = () => saveBody("weight");
 $("saveMeasurementsBtn").onclick = () => saveBody("measurements");
@@ -1496,16 +1616,22 @@ $("classList")?.addEventListener("click",event=>{const edit=event.target.closest
 $("roundExerciseList").onclick = (event) => {
   const card = event.target.closest("[data-group-uid]"); if (!card) return;
   const item = manualGroupExercises.find(entry => entry.uid === card.dataset.groupUid); if (!item) return;
+  const timedToggle = event.target.closest("[data-timed-toggle]"); if (timedToggle) return toggleTimedExercise(item.uid);
+  const timedReset = event.target.closest("[data-timed-reset]"); if (timedReset) return resetTimedExercise(item.uid);
   const adjust = event.target.closest("[data-group-adjust]");
-  if (adjust) { syncManualGroupFromDOM(); const exercise=exerciseById(item.exerciseId); const field=adjust.dataset.groupAdjust; const step=field==="reps"?1:number(exercise?.weightStep,2.5); item[field]=Math.max(0,number(item[field])+number(adjust.dataset.delta)*step); return renderManualRound(); }
-  const side = event.target.closest("[data-group-side]"); if (side) { item.side=side.dataset.groupSide; return renderManualRound(); }
+  if (adjust) { workoutDraftDirty=true; syncManualGroupFromDOM(); const exercise=exerciseById(item.exerciseId); const field=adjust.dataset.groupAdjust; const step=field==="reps"?1:number(exercise?.weightStep,2.5); item[field]=Math.max(0,number(item[field])+number(adjust.dataset.delta)*step); return renderManualRound(); }
+  const side = event.target.closest("[data-group-side]"); if (side) { workoutDraftDirty=true; item.side=side.dataset.groupSide; return renderManualRound(); }
   if (event.target.closest("[data-save-single-set]")) return saveOneSet(item.uid);
-  if (event.target.closest("[data-remove-group-exercise]")) { syncManualGroupFromDOM(); manualGroupExercises=manualGroupExercises.filter(entry=>entry.uid!==item.uid); return renderManualRound(); }
+  if (event.target.closest("[data-remove-group-exercise]")) { workoutDraftDirty=true; syncManualGroupFromDOM(); manualGroupExercises=manualGroupExercises.filter(entry=>entry.uid!==item.uid); return renderManualRound(); }
   const edit = event.target.closest("[data-edit-inline-set]"); if (edit) { const idx=number(edit.dataset.editInlineSet); const set=item.completedSets[idx]; if(!set)return; item.reps=set.reps; item.weight=set.weight; item.side=set.side||"both"; item.completedSets.splice(idx,1); const pos=manualRounds.findIndex(round=>(round.entries||[]).some(entry=>entry.completedAt===set.completedAt)); if(pos>=0)manualRounds.splice(pos,1); return renderManualRound(); }
 };
+$("roundExerciseList")?.addEventListener("input", event => { if (event.target.matches("[data-group-field]")) { workoutDraftDirty=true; setTimeout(persistActiveWorkoutDraft,0); } });
+$("roundNotes")?.addEventListener("input",()=>{workoutDraftDirty=true;persistActiveWorkoutDraft();});
+$("workoutDate")?.addEventListener("change",()=>{workoutDraftDirty=true;persistActiveWorkoutDraft();});
+$("workoutStyleSelect")?.addEventListener("change",event=>{settings.workoutStyle=event.target.value;workoutDraftDirty=true;persistActiveWorkoutDraft();});
 $("roundExerciseList").onchange = (event) => {
   const card=event.target.closest("[data-group-uid]"); if(!card)return; const item=manualGroupExercises.find(entry=>entry.uid===card.dataset.groupUid); if(!item)return;
-  if(event.target.dataset.groupField==="exerciseId"){item.exerciseId=event.target.value; applyLatestPerformance(item, item.exerciseId); renderManualRound();}
+  if(event.target.dataset.groupField==="exerciseId"){workoutDraftDirty=true;item.exerciseId=event.target.value; applyLatestPerformance(item, item.exerciseId); renderManualRound();persistActiveWorkoutDraft();}
 };
 $("completedRounds").onclick = (event) => { const button=event.target.closest("[data-edit-round]"); if(button) editCompletedRound(number(button.dataset.editRound)); };
 
@@ -1651,6 +1777,8 @@ if ($("bodyDate")) $("bodyDate").value = today();
 if ($("measureDate")) $("measureDate").value = today();
 if ($("routineStartDate")) $("routineStartDate").value = today();
 renderTimer();
+window.addEventListener("pagehide",()=>persistActiveWorkoutDraft());
+document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="hidden")persistActiveWorkoutDraft();});
 
 onAuthStateChanged(auth, async (user) => {
   currentUser = user;
