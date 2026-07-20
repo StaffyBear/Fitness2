@@ -154,7 +154,7 @@ function formatDate(date) {
   if (!date) return "Unknown date";
   return new Date(`${date}T12:00:00`).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
 }
-function startOfWeek(date) { const d = new Date(date); const day = (d.getDay()+6)%7; d.setHours(12,0,0,0); d.setDate(d.getDate()-day); return d; }
+function startOfWeek(date) { const d = new Date(date); const day = (d.getDay()+6)%7; d.setHours(0,0,0,0); d.setDate(d.getDate()-day); return d; }
 function isoDate(date){ return date.toISOString().slice(0,10); }
 function addDays(date, amount){ const d=new Date(date); d.setDate(d.getDate()+amount); return d; }
 function dateValue(value){ const d=new Date(`${value||"1970-01-01"}T00:00:00`); return Number.isNaN(d.getTime())?0:d.getTime(); }
@@ -318,8 +318,7 @@ async function resetExerciseLibrary() {
     "This deletes every exercise in your library and replaces it with the clean starter list. Saved workout history and body data are not deleted. Routines using a custom exercise may need editing afterwards."
   );
   if (!confirmed) return;
-  const button = $("mergeDuplicateExercisesBtn")?.addEventListener("click",mergeDuplicateExercises);
-$("resetExerciseLibraryBtn");
+  const button = $("resetExerciseLibraryBtn");
   if (button) { button.disabled = true; button.textContent = "Resetting…"; }
   try {
     const snapshot = await getDocs(userCollection("exercises"));
@@ -342,7 +341,16 @@ $("resetExerciseLibraryBtn");
   }
 }
 
-function normaliseExerciseName(value){return String(value||"").toLowerCase().replace(/[^a-z0-9]+/g," ").trim().replace(/\b(cable|machine|db|bb)\b/g,"").replace(/\s+/g," ");}
+function normaliseExerciseName(value){
+  let name=String(value||"").toLowerCase().replace(/[^a-z0-9]+/g," ").trim().replace(/\b(cable|machine|db|bb)\b/g,"").replace(/\s+/g," ");
+  const aliases={
+    "bicep curls":"bicep curl","calf raises":"calf raise","chin up":"assisted chin up","chin up assisted":"assisted chin up",
+    "chin up cable":"assisted chin up","seated row":"seated cable row","row seated":"seated cable row",
+    "pullover dumbbell barbell":"pullover","pullover db bb":"pullover","leg extensions":"leg extension",
+    "dead bugs":"dead bug","lateral raises":"lateral raise","tricep pushdowns":"tricep pushdown"
+  };
+  return aliases[name]||name.replace(/\b(curls|raises|extensions|pushdowns|bugs)\b/g,m=>({curls:"curl",raises:"raise",extensions:"extension",pushdowns:"pushdown",bugs:"bug"})[m]);
+}
 async function mergeDuplicateExercises(){
   const groups=new Map(); exercises.forEach(ex=>{const key=normaliseExerciseName(ex.name);if(!groups.has(key))groups.set(key,[]);groups.get(key).push(ex);});
   const duplicates=[...groups.values()].filter(group=>group.length>1); if(!duplicates.length)return showToast("No duplicate exercise names found.");
@@ -448,11 +456,10 @@ function groupExerciseCard(item, index) {
     <div class="exercise-card-heading"><label class="grow">Exercise ${index + 1}<select data-group-field="exerciseId">${exercises.filter(ex=>!ex.archived).map(ex => `<option value="${escapeHtml(ex.id)}" ${ex.id === item.exerciseId ? "selected" : ""}>${escapeHtml(ex.name)}</option>`).join("")}</select></label>${manualGroupExercises.length > 1 ? `<button class="ghost icon-remove" data-remove-group-exercise type="button" aria-label="Remove exercise">×</button>` : ""}</div>
     ${sideOptions(exercise, item.side)}
     ${inputType === "time" ? `<div class="timer-mode-radios"><label><input type="radio" name="timer-${item.uid}" data-timer-mode="manual" ${timerMode==="manual"?"checked":""}> Manual</label><label><input type="radio" name="timer-${item.uid}" data-timer-mode="stopwatch" ${timerMode==="stopwatch"?"checked":""}> Stopwatch</label></div>` : ""}
-    <div class="compact-control-grid">
-      <div class="mini-stepper"><span>${inputType === "time" ? "SECONDS" : "REPS"}</span><div><button data-group-adjust="reps" data-delta="-1" type="button">▼</button><input data-group-field="reps" inputmode="numeric" value="${number(item.reps,10)}" ${inputType==="time"&&timerMode==="stopwatch"?"readonly":""}/><button data-group-adjust="reps" data-delta="1" type="button">▲</button></div></div>
+    ${inputType === "time" && timerMode === "stopwatch" ? `<div class="timed-exercise-tools"><strong data-timed-display>${formatDuration(number(item.timedElapsedMs)+(item.timedRunning&&item.timedStartedAt?Date.now()-item.timedStartedAt:0))}</strong><div class="timed-button-row"><button class="secondary small" data-timed-toggle type="button">${item.timedRunning?"Pause":"Start"}</button><button class="ghost small" data-timed-reset type="button">Reset</button></div></div>` : `<div class="compact-control-grid">
+      <div class="mini-stepper"><span>${inputType === "time" ? "SECONDS" : "REPS"}</span><div><button data-group-adjust="reps" data-delta="-1" type="button">▼</button><input data-group-field="reps" inputmode="numeric" value="${number(item.reps,10)}"/><button data-group-adjust="reps" data-delta="1" type="button">▲</button></div></div>
       <div class="mini-stepper ${inputType !== "repsWeight" ? "hidden" : ""}"><span>WEIGHT (${escapeHtml(settings.unit)})</span><div><button data-group-adjust="weight" data-delta="-1" type="button">▼</button><input data-group-field="weight" inputmode="decimal" value="${number(item.weight)}"/><button data-group-adjust="weight" data-delta="1" type="button">▲</button></div></div>
-    </div>
-    ${inputType === "time" && timerMode === "stopwatch" ? `<div class="timed-exercise-tools"><strong data-timed-display>${formatDuration(number(item.timedElapsedMs)+(item.timedRunning&&item.timedStartedAt?Date.now()-item.timedStartedAt:0))}</strong><button class="secondary small" data-timed-toggle type="button">${item.timedRunning?"Pause":"Start"}</button><button class="ghost small" data-timed-reset type="button">Reset</button></div>` : ""}
+    </div>`}
     <div class="exercise-primary-actions"><button class="ghost small" data-view-exercise type="button">Exercise info</button><button class="secondary small" data-save-single-set type="button">✓ Save set</button></div>
     <div class="inline-set-list">${completed.map((set,setIndex)=>`<button class="saved-set-chip" data-edit-inline-set="${setIndex}" type="button">Set ${setIndex+1}: ${set.inputType==="time"?`${set.reps}s`:set.inputType==="repsOnly"?`${set.reps} reps`:`${set.reps} × ${set.weight}${settings.unit}`}${set.side!=="both"?` · ${set.side}`:""} ✎</button>`).join("")}</div>
   </article>`;
@@ -835,6 +842,7 @@ function openRoutineEditor(routine = null) {
   $("routineEditorTitle").textContent = routine ? `Edit ${routine.name}` : "New routine";
   $("routineName").value = routine?.name || "";
   $("routineDay").value = routine?.day || "";
+  if ($("routineType")) $("routineType").value = routine?.type || "standard";
   routineDraftBlocks = routine?.blocks
     ? structuredClone(routine.blocks).map((block, index) => ({
         id: block.id || crypto.randomUUID(),
@@ -901,6 +909,7 @@ async function saveRoutine() {
   const payload = {
     name,
     day: $("routineDay").value.trim(),
+    type: $("routineType")?.value || "standard",
     startDate: today(),
     endDate: "",
     notes: "",
@@ -1149,7 +1158,7 @@ function renderBody() {
   const latestMeasurements=bodyEntries.filter(e=>e.type==="measurements").sort((a,b)=>String(b.date).localeCompare(String(a.date)))[0];
   const heightM = number(settings.heightCm) / 100;
   const bmi = latestWeight && heightM > 0 ? latestWeight.weight / (heightM * heightM) : 0;
-  $("bodySummary").innerHTML=`<div class="summary">Current weight<strong>${latestWeight?`${latestWeight.weight} ${latestWeight.unit||settings.unit}`:"—"}</strong></div><div class="summary">Last change<strong>${latestWeight&&previousWeight?`${(latestWeight.weight-previousWeight.weight).toFixed(1)} ${latestWeight.unit||settings.unit}`:"—"}</strong></div><div class="summary">Height<strong>${number(settings.heightCm)>0?`${settings.heightCm} cm`:"—"}</strong></div><div class="summary">BMI<strong>${bmi?bmi.toFixed(1):"—"}</strong></div><div class="summary">Latest measurements<strong>${latestMeasurements?formatDate(latestMeasurements.date):"—"}</strong></div>`;
+  $("bodySummary").innerHTML=`<div class="body-measure-date"><small>Latest measurements</small><strong>${latestMeasurements?formatDate(latestMeasurements.date):"No measurements yet"}</strong></div><div class="summary">Weight<strong>${latestWeight?`${latestWeight.weight} ${latestWeight.unit||settings.unit}`:"—"}</strong></div><div class="summary">Change<strong>${latestWeight&&previousWeight?`${(latestWeight.weight-previousWeight.weight).toFixed(1)} ${latestWeight.unit||settings.unit}`:"—"}</strong></div><div class="summary">Height<strong>${number(settings.heightCm)>0?`${settings.heightCm} cm`:"—"}</strong></div><div class="summary">BMI<strong>${bmi?bmi.toFixed(1):"—"}</strong></div>`;
   renderBodyChart(); renderBodyHistory();
 }
 function renderBodyChart(){
@@ -1363,10 +1372,15 @@ function workoutDetailHtml(workout) {
   const rounds = workoutRounds(workout);
   return rounds.map((round, roundIndex) => `<section class="history-round-card"><h3>Round ${roundIndex + 1}</h3><div class="history-round-grid">${(round.exercises || []).map(entry => `<article class="history-exercise-card"><div class="item-title">${escapeHtml(entry.exerciseName || exerciseById(entry.exerciseId)?.name || "Exercise")}</div><div class="history-set-list">${(entry.sets || []).map((set, i) => `<div class="item-meta">Set ${i + 1}: ${set.inputType === "time" ? `${set.reps} sec` : set.inputType === "repsOnly" ? `${set.reps} reps` : `${set.reps} reps @ ${set.weight || 0} ${settings.unit}`}${set.side && set.side !== "both" ? ` · ${escapeHtml(set.side)}` : ""}${set.notes ? ` · ${escapeHtml(set.notes)}` : ""}</div>`).join("")}</div></article>`).join("")}</div></section>`).join("");
 }
-function openWorkoutHistory(id){const workout=workouts.find(w=>w.id===id);if(!workout)return;$("historyDialogTitle").textContent=workout.routineName||`Workout — ${formatDate(workout.date)}`;$("historyDialogBody").innerHTML=workoutDetailHtml(workout);$("historyDialog").showModal();}
-function openWorkoutEdit(id){const workout=workouts.find(w=>w.id===id);if(!workout)return;editingWorkoutId=id;$("workoutEditBody").innerHTML=`<label>Date<input id="editWorkoutDate" type="date" value="${escapeHtml(workout.date||today())}"/></label><label>Workout name<input id="editWorkoutName" value="${escapeHtml(workout.routineName||"")}" placeholder="Optional name"/></label>${(workout.exercises||[]).map((entry,ei)=>`<div class="edit-exercise-block"><h4>${escapeHtml(entry.exerciseName||"Exercise")}</h4>${(entry.sets||[]).map((set,si)=>`<div class="edit-set-row" data-edit-set="${ei}:${si}"><label>Reps/sec<input data-edit-field="reps" inputmode="decimal" value="${number(set.reps)}"/></label><label>Weight<input data-edit-field="weight" inputmode="decimal" value="${number(set.weight)}"/></label><label>Side<select data-edit-field="side"><option value="both" ${(set.side||"both")==="both"?"selected":""}>Both</option><option value="left" ${set.side==="left"?"selected":""}>Left</option><option value="right" ${set.side==="right"?"selected":""}>Right</option></select></label></div>`).join("")}</div>`).join("")}`;$("workoutEditDialog").showModal();}
+async function deleteWorkoutById(id){
+  if(!id)return;
+  if(!await askConfirm("Delete workout","This permanently removes the workout and may change your PBs."))return;
+  await deleteDoc(userDoc("workouts",id)); workouts=workouts.filter(w=>w.id!==id);
+  $("historyDialog")?.close(); $("workoutEditDialog")?.close(); renderHistory(); renderPBs(); renderExerciseLibrary(); showToast("Workout deleted.");
+}
+function openWorkoutHistory(id){const workout=workouts.find(w=>w.id===id);if(!workout)return;$("historyDialogTitle").textContent=workout.routineName||`Workout — ${formatDate(workout.date)}`;$("historyDialogBody").innerHTML=workoutDetailHtml(workout)+`<button class="danger wide top-gap" data-dialog-delete-workout="${escapeHtml(workout.id)}" type="button">Delete workout</button>`;$("historyDialog").showModal();}
+function openWorkoutEdit(id){const workout=workouts.find(w=>w.id===id);if(!workout)return;editingWorkoutId=id;$("workoutEditBody").innerHTML=`<label>Date<input id="editWorkoutDate" type="date" value="${escapeHtml(workout.date||today())}"/></label><label>Workout name<input id="editWorkoutName" value="${escapeHtml(workout.routineName||"")}" placeholder="Optional name"/></label>${(workout.exercises||[]).map((entry,ei)=>`<div class="edit-exercise-block"><h4>${escapeHtml(entry.exerciseName||"Exercise")}</h4>${(entry.sets||[]).map((set,si)=>`<div class="edit-set-row" data-edit-set="${ei}:${si}"><label>Reps/sec<input data-edit-field="reps" inputmode="decimal" value="${number(set.reps)}"/></label><label>Weight<input data-edit-field="weight" inputmode="decimal" value="${number(set.weight)}"/></label><label>Side<select data-edit-field="side"><option value="both" ${(set.side||"both")==="both"?"selected":""}>Both</option><option value="left" ${set.side==="left"?"selected":""}>Left</option><option value="right" ${set.side==="right"?"selected":""}>Right</option></select></label></div>`).join("")}</div>`).join("")}<button class="danger wide top-gap" data-dialog-delete-workout="${escapeHtml(workout.id)}" type="button">Delete workout</button>`;$("workoutEditDialog").showModal();}
 async function saveWorkoutEdit(){const workout=workouts.find(w=>w.id===editingWorkoutId);if(!workout)return;const updated=structuredClone(workout);updated.date=$("editWorkoutDate").value||today();updated.routineName=$("editWorkoutName").value.trim()||null;document.querySelectorAll("[data-edit-set]").forEach(row=>{const [ei,si]=row.dataset.editSet.split(":").map(number);row.querySelectorAll("[data-edit-field]").forEach(input=>{const field=input.dataset.editField;updated.exercises[ei].sets[si][field]=field==="side"?input.value:number(input.value);});});const payload={date:updated.date,routineName:updated.routineName,exercises:updated.exercises,updatedAt:serverTimestamp()};await setDoc(userDoc("workouts",updated.id),payload,{merge:true});const idx=workouts.findIndex(w=>w.id===updated.id);workouts[idx]={...workouts[idx],...payload};$("workoutEditDialog").close();renderHistory();renderPBs();showToast("Workout updated.");}
-async function deleteWorkoutById(id){if(!await askConfirm("Delete workout","This permanently removes the workout and may change your PBs."))return;await deleteDoc(userDoc("workouts",id));workouts=workouts.filter(w=>w.id!==id);renderHistory();renderPBs();renderExerciseLibrary();}
 async function copyWorkoutToRoutine(id){const workout=workouts.find(w=>w.id===id);if(!workout)return;const blocks=workoutRounds(workout).map((round,index)=>({id:crypto.randomUUID(),order:index,name:`Round ${index+1}`,rounds:1,restAfterRound:0,exercises:(round.exercises||[]).map(entry=>({exerciseId:entry.exerciseId}))}));const payload={name:`Copy of ${workout.routineName||formatDate(workout.date)}`,day:"",blocks,createdAt:serverTimestamp(),updatedAt:serverTimestamp()};const ref=await addDoc(userCollection("routines"),payload);routines.push({id:ref.id,...payload});routines.sort((a,b)=>a.name.localeCompare(b.name));renderRoutines();showToast("Workout copied to Routines with its round groupings preserved.");}
 
 
@@ -1768,6 +1782,9 @@ $("historyList")?.addEventListener("click", async (event) => {
   const del=event.target.closest("[data-delete-workout]"); if(del)return deleteWorkoutById(del.dataset.deleteWorkout);
 });
 $("historyDialogClose")?.addEventListener("click",()=>$("historyDialog").close());
+$("historyDialog")?.addEventListener("click",event=>{const b=event.target.closest("[data-dialog-delete-workout]");if(b)deleteWorkoutById(b.dataset.dialogDeleteWorkout);});
+$("workoutEditDialog")?.addEventListener("click",event=>{const b=event.target.closest("[data-dialog-delete-workout]");if(b)deleteWorkoutById(b.dataset.dialogDeleteWorkout);});
+$("mergeDuplicateExercisesBtn")?.addEventListener("click",mergeDuplicateExercises);
 $("workoutEditClose")?.addEventListener("click",()=>$("workoutEditDialog").close());
 $("saveWorkoutEditBtn")?.addEventListener("click",saveWorkoutEdit);
 $("pbList")?.addEventListener("click",event=>{const button=event.target.closest("[data-pb-exercise]");if(button)openPBChart(button.dataset.pbExercise,button.dataset.pbSide);});

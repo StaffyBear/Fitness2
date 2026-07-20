@@ -232,3 +232,13 @@ body{background:linear-gradient(180deg,#edf3f9 0,#f6f8fb 42%,#eef3f8 100%);paddi
 .body-summary-grid{grid-template-columns:repeat(5,minmax(0,1fr));gap:8px}.body-summary-grid .summary-card{padding:10px;border-radius:14px}.body-summary-grid .summary-card strong{font-size:18px}.action-tiles{gap:8px}.action-tile{padding:10px;font-size:14px}
 .settings-action-stack{display:grid;gap:8px;margin-top:12px}
 @media(max-width:700px){.settings-tile-grid{grid-template-columns:repeat(3,minmax(0,1fr))}.settings-tile{min-height:88px;padding:8px}.settings-tile strong{font-size:12px}.history-period-stats{grid-template-columns:1fr}.period-summary-card>div{grid-template-columns:repeat(4,1fr)}.history-stat-grid{grid-template-columns:repeat(2,1fr)}.history-stat-grid span:last-child{grid-column:1/-1}.history-action-stack{grid-template-columns:1fr}.body-summary-grid{grid-template-columns:repeat(5,minmax(72px,1fr));overflow-x:auto;padding-bottom:4px}.body-summary-grid .summary-card{min-width:72px}.compact-control-grid{gap:8px}.exercise-primary-actions{grid-template-columns:1fr 1fr}}
+
+
+/* v11.1 corrections */
+.timed-exercise-tools{display:flex;align-items:center;justify-content:space-between;gap:12px;border:1px solid var(--line);background:#fff;border-radius:16px;padding:12px 14px;margin-top:10px}
+.timed-exercise-tools>strong{font-size:30px;letter-spacing:.03em}.timed-button-row{display:flex;gap:8px}
+.body-summary-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:7px;overflow:visible!important;padding-bottom:0!important}
+.body-measure-date{grid-column:1/-1;display:flex;align-items:center;justify-content:space-between;gap:10px;padding:2px 4px 6px;color:var(--muted)}
+.body-measure-date strong{color:var(--ink);font-size:15px}.body-summary-grid .summary{padding:9px 5px;text-align:center;font-size:12px;min-width:0}.body-summary-grid .summary strong{font-size:16px;margin-top:2px;white-space:normal}
+.action-tiles{display:flex;gap:8px}.action-tile{flex:0 1 auto;padding:9px 13px;border-radius:12px;font-size:13px}
+@media(max-width:700px){.body-summary-grid{grid-template-columns:repeat(4,minmax(0,1fr))}.body-summary-grid .summary{min-width:0}.body-summary-grid .summary strong{font-size:14px}.body-measure-date{font-size:12px}.timed-exercise-tools{align-items:stretch;flex-direction:column}.timed-exercise-tools>strong{text-align:center}.timed-button-row{display:grid;grid-template-columns:1fr 1fr}}

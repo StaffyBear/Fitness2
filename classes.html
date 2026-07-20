@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta name="theme-color" content="#10243f" />
   <title>Frever Fitness</title>
-  <link rel="stylesheet" href="./styles.css?v=11.0" />
+  <link rel="stylesheet" href="./styles.css?v=11.1" />
 </head>
 <body data-start-page="classes">
 <header class="app-header">
@@ -59,7 +59,7 @@
 
     <section id="routines" class="panel">
       <div class="card"><div class="row between gap"><div><h2>Routines</h2><p class="muted compact">Build single exercises, supersets or larger groups.</p></div><div class="row gap wrap"><label class="inline-filter">Sort <select id="routineSortSelect"><option value="day">Day of week</option><option value="name">Name</option><option value="updated">Recently updated</option><option value="last">Last performed</option></select></label><button id="newRoutineBtn" class="primary small" type="button">+ New routine</button></div></div><div id="routineList" class="tile-list"></div></div>
-      <div id="routineEditor" class="card hidden"><div class="row between gap"><div><h2 id="routineEditorTitle">New routine</h2><p class="muted compact">Choose exercises in the order you want them to appear. Each round loads automatically during your workout.</p></div><button id="closeRoutineEditorBtn" class="ghost small" type="button">Close</button></div><div class="grid two routine-basic-fields"><label>Routine name<input id="routineName" placeholder="Monday — Legs" /></label><label>Day<select id="routineDay"><option value="">No day</option><option>Monday</option><option>Tuesday</option><option>Wednesday</option><option>Thursday</option><option>Friday</option><option>Saturday</option><option>Sunday</option></select></label></div><div class="row between gap"><h3>Rounds</h3><button id="addRoutineBlockBtn" class="secondary small" type="button">+ Add round</button></div><div id="routineBlocks" class="stack"></div><button id="saveRoutineBtn" class="primary" type="button">Save routine</button></div>
+      <div id="routineEditor" class="card hidden"><div class="row between gap"><div><h2 id="routineEditorTitle">New routine</h2><p class="muted compact">Choose exercises in the order you want them to appear. Each round loads automatically during your workout.</p></div><button id="closeRoutineEditorBtn" class="ghost small" type="button">Close</button></div><div class="grid two routine-basic-fields"><label>Routine name<input id="routineName" placeholder="Monday — Legs" /></label><label>Day<select id="routineDay"><option value="">No day</option><option>Monday</option><option>Tuesday</option><option>Wednesday</option><option>Thursday</option><option>Friday</option><option>Saturday</option><option>Sunday</option></select></label><label>Workout type<select id="routineType"><option value="standard">Standard</option><option value="superset">Superset</option><option value="circuit">Circuit</option><option value="ladder-down">Ladder 10 → 1</option><option value="ladder-up">Ladder 1 → 10</option></select></label></div><div class="row between gap"><h3>Rounds</h3><button id="addRoutineBlockBtn" class="secondary small" type="button">+ Add round</button></div><div id="routineBlocks" class="stack"></div><button id="saveRoutineBtn" class="primary" type="button">Save routine</button></div>
     </section>
 
     <section id="history" class="panel"><div class="card"><h2>Workout history</h2><p class="muted">View, edit, copy or delete saved workouts.</p><div id="historyPeriodStats" class="history-period-stats"></div><div id="historyList" class="tile-list"></div></div></section>
@@ -137,7 +137,7 @@
   <button id="toastCloseBtn" class="primary" type="button">OK</button>
 </dialog>
 
-<script type="module" src="./app.js?v=11.0"></script>
+<script type="module" src="./app.js?v=11.1"></script>
 <dialog id="exerciseInfoDialog" class="detail-dialog"><div class="row between"><h3 id="exerciseInfoTitle">Exercise</h3><button id="exerciseInfoClose" class="ghost small" type="button">Close</button></div><div id="exerciseInfoBody"></div></dialog>
 </body>
 </html>
