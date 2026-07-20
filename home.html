@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta name="theme-color" content="#10243f" />
   <title>Frever Fitness</title>
-  <link rel="stylesheet" href="./styles.css?v=11.1" />
+  <link rel="stylesheet" href="./styles.css?v=11.2" />
 </head>
 <body data-start-page="dashboard">
 <header class="app-header">
@@ -59,7 +59,7 @@
 
     <section id="routines" class="panel">
       <div class="card"><div class="row between gap"><div><h2>Routines</h2><p class="muted compact">Build single exercises, supersets or larger groups.</p></div><div class="row gap wrap"><label class="inline-filter">Sort <select id="routineSortSelect"><option value="day">Day of week</option><option value="name">Name</option><option value="updated">Recently updated</option><option value="last">Last performed</option></select></label><button id="newRoutineBtn" class="primary small" type="button">+ New routine</button></div></div><div id="routineList" class="tile-list"></div></div>
-      <div id="routineEditor" class="card hidden"><div class="row between gap"><div><h2 id="routineEditorTitle">New routine</h2><p class="muted compact">Choose exercises in the order you want them to appear. Each round loads automatically during your workout.</p></div><button id="closeRoutineEditorBtn" class="ghost small" type="button">Close</button></div><div class="grid two routine-basic-fields"><label>Routine name<input id="routineName" placeholder="Monday — Legs" /></label><label>Day<select id="routineDay"><option value="">No day</option><option>Monday</option><option>Tuesday</option><option>Wednesday</option><option>Thursday</option><option>Friday</option><option>Saturday</option><option>Sunday</option></select></label><label>Workout type<select id="routineType"><option value="standard">Standard</option><option value="superset">Superset</option><option value="circuit">Circuit</option><option value="ladder-down">Ladder 10 → 1</option><option value="ladder-up">Ladder 1 → 10</option></select></label></div><div class="row between gap"><h3>Rounds</h3><button id="addRoutineBlockBtn" class="secondary small" type="button">+ Add round</button></div><div id="routineBlocks" class="stack"></div><button id="saveRoutineBtn" class="primary" type="button">Save routine</button></div>
+      <div id="routineEditor" class="card hidden"><div class="row between gap"><div><h2 id="routineEditorTitle">New routine</h2><p class="muted compact">Choose exercises in the order you want them to appear. Each round loads automatically during your workout.</p></div><button id="closeRoutineEditorBtn" class="ghost small" type="button">Close</button></div><div class="grid two routine-basic-fields"><label>Routine name<input id="routineName" placeholder="Monday — Legs" /></label><label>Day<select id="routineDay"><option value="">No day</option><option>Monday</option><option>Tuesday</option><option>Wednesday</option><option>Thursday</option><option>Friday</option><option>Saturday</option><option>Sunday</option></select></label><label>Workout type<select id="routineType"><option value="standard">Standard</option><option value="superset">Superset</option><option value="circuit">Circuit</option><option value="ladder-down">Ladder 10 → 1</option><option value="ladder-up">Ladder 1 → 10</option></select></label></div><div id="routineTypeQuestions" class="routine-type-questions"></div><button id="generateRoutineTemplateBtn" class="secondary wide" type="button">Generate workout structure</button><div class="row between gap top-gap"><h3>Workout structure</h3><button id="addRoutineBlockBtn" class="secondary small" type="button">+ Add group</button></div><div id="routineBlocks" class="stack"></div><button id="saveRoutineBtn" class="primary" type="button">Save routine</button></div>
     </section>
 
     <section id="history" class="panel"><div class="card"><h2>Workout history</h2><p class="muted">View, edit, copy or delete saved workouts.</p><div id="historyPeriodStats" class="history-period-stats"></div><div id="historyList" class="tile-list"></div></div></section>
@@ -110,7 +110,7 @@
       <div id="settingsPanelUnits" class="card settings-detail hidden"><div class="row between"><h3>Units & body</h3><button class="ghost small" data-close-settings type="button">Close</button></div><label>Default weight unit<select id="unitSetting"><option value="kg">kg</option><option value="lb">lb</option></select></label><label>Default weight label<select id="weightModeSetting"><option value="total">Total weight</option><option value="each">Each dumbbell / side</option><option value="bodyweight">Bodyweight</option></select></label><label>Measurement unit<select id="measureUnitSetting"><option value="cm">cm</option><option value="in">inches</option></select></label><label>Height (cm)<input id="heightSetting" inputmode="decimal" placeholder="e.g. 169" /></label><button class="primary" data-save-settings type="button">Save settings</button></div>
       <div id="settingsPanelExercises" class="card settings-detail hidden"><div class="row between"><h3>Exercise library</h3><button class="ghost small" data-close-settings type="button">Close</button></div><p>Your saved workouts, PB history and body data will not be deleted.</p><p class="muted compact">Resetting removes every current exercise and installs a clean starter library. Any routine that uses a custom exercise may need editing afterwards.</p><div class="settings-action-stack"><button id="mergeDuplicateExercisesBtn" class="secondary" type="button">Merge duplicate exercises</button><button id="resetExerciseLibraryBtn" class="danger" type="button">Reset to 30 starter exercises</button></div></div>
       <div id="settingsPanelBackup" class="card settings-detail hidden"><div class="row between"><h3>Backup</h3><button class="ghost small" data-close-settings type="button">Close</button></div><button id="exportBtn" class="secondary" type="button">Export JSON backup</button></div>
-      <div id="settingsPanelAbout" class="card settings-detail hidden"><div class="row between"><h3>About Frever Fitness</h3><button class="ghost small" data-close-settings type="button">Close</button></div><p>Frever Fitness is a private workout, progress and planning app.</p><p class="muted">Version 10.0</p></div>
+      <div id="settingsPanelAbout" class="card settings-detail hidden"><div class="row between"><h3>About Frever Fitness</h3><button class="ghost small" data-close-settings type="button">Close</button></div><p>Frever Fitness is a private workout, progress and planning app.</p><p class="muted">Version 11.2</p></div>
     </section>
     <nav id="bottomNav" class="bottom-nav" aria-label="Favourite navigation"></nav>
 
@@ -137,7 +137,7 @@
   <button id="toastCloseBtn" class="primary" type="button">OK</button>
 </dialog>
 
-<script type="module" src="./app.js?v=11.1"></script>
+<script type="module" src="./app.js?v=11.2"></script>
 <dialog id="exerciseInfoDialog" class="detail-dialog"><div class="row between"><h3 id="exerciseInfoTitle">Exercise</h3><button id="exerciseInfoClose" class="ghost small" type="button">Close</button></div><div id="exerciseInfoBody"></div></dialog>
 </body>
 </html>

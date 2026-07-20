@@ -342,25 +342,88 @@ async function resetExerciseLibrary() {
 }
 
 function normaliseExerciseName(value){
-  let name=String(value||"").toLowerCase().replace(/[^a-z0-9]+/g," ").trim().replace(/\b(cable|machine|db|bb)\b/g,"").replace(/\s+/g," ");
-  const aliases={
-    "bicep curls":"bicep curl","calf raises":"calf raise","chin up":"assisted chin up","chin up assisted":"assisted chin up",
-    "chin up cable":"assisted chin up","seated row":"seated cable row","row seated":"seated cable row",
-    "pullover dumbbell barbell":"pullover","pullover db bb":"pullover","leg extensions":"leg extension",
-    "dead bugs":"dead bug","lateral raises":"lateral raise","tricep pushdowns":"tricep pushdown"
+  let name = String(value || "")
+    .toLowerCase()
+    .replace(/&/g, " and ")
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim()
+    .replace(/\b(dumbbell|dumbbells|barbell|barbells|db|bb|cable|machine)\b/g, "")
+    .replace(/\s+/g, " ");
+  name = name.replace(/\b(curls|raises|extensions|pushdowns|bugs|rows)\b/g, word => ({
+    curls:"curl", raises:"raise", extensions:"extension", pushdowns:"pushdown", bugs:"bug", rows:"row"
+  })[word]);
+  const aliases = {
+    "bicep curl":"bicep curl",
+    "calf raise":"calf raise",
+    "chin up":"assisted chin up",
+    "chin up assisted":"assisted chin up",
+    "assisted chin up":"assisted chin up",
+    "row seated":"seated cable row",
+    "seated row":"seated cable row",
+    "seated cable row":"seated cable row",
+    "pullover":"pullover",
+    "pullover and":"pullover",
+    "leg extension":"leg extension",
+    "dead bug":"dead bug",
+    "lateral raise":"lateral raise",
+    "tricep pushdown":"tricep pushdown"
   };
-  return aliases[name]||name.replace(/\b(curls|raises|extensions|pushdowns|bugs)\b/g,m=>({curls:"curl",raises:"raise",extensions:"extension",pushdowns:"pushdown",bugs:"bug"})[m]);
+  return aliases[name] || name;
 }
 async function mergeDuplicateExercises(){
-  const groups=new Map(); exercises.forEach(ex=>{const key=normaliseExerciseName(ex.name);if(!groups.has(key))groups.set(key,[]);groups.get(key).push(ex);});
-  const duplicates=[...groups.values()].filter(group=>group.length>1); if(!duplicates.length)return showToast("No duplicate exercise names found.");
-  if(!await askConfirm("Merge duplicate exercises?",`Found ${duplicates.length} duplicate group${duplicates.length===1?"":"s"}. Workout history and routines will be updated before duplicate records are removed.`))return;
-  for(const group of duplicates){const primary=group.sort((a,b)=>(a.builtIn? -1:1)-(b.builtIn?-1:1))[0];const oldIds=new Set(group.slice(1).map(x=>x.id));
-    for(const workout of workouts){let changed=false;(workout.exercises||[]).forEach(entry=>{if(oldIds.has(entry.exerciseId)){entry.exerciseId=primary.id;entry.exerciseName=primary.name;changed=true;}});(workout.rounds||[]).forEach(round=>(round.exercises||[]).forEach(entry=>{if(oldIds.has(entry.exerciseId)){entry.exerciseId=primary.id;entry.exerciseName=primary.name;changed=true;}}));if(changed)await setDoc(userDoc("workouts",workout.id),{exercises:workout.exercises,rounds:workout.rounds||[]},{merge:true});}
-    for(const routine of routines){let changed=false;(routine.blocks||[]).forEach(block=>(block.exercises||[]).forEach(entry=>{if(oldIds.has(entry.exerciseId)){entry.exerciseId=primary.id;changed=true;}}));if(changed)await setDoc(userDoc("routines",routine.id),{blocks:routine.blocks,updatedAt:serverTimestamp()},{merge:true});}
-    for(const duplicate of group.slice(1))await deleteDoc(userDoc("exercises",duplicate.id));
+  const button = $("mergeDuplicateExercisesBtn");
+  if (button) { button.disabled = true; button.textContent = "Checking…"; }
+  try {
+    exercises = await loadCollection("exercises");
+    const groups = new Map();
+    exercises.forEach(ex => {
+      const key = normaliseExerciseName(ex.name);
+      if (!key) return;
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key).push(ex);
+    });
+    const duplicates = [...groups.values()].filter(group => group.length > 1);
+    if (!duplicates.length) return showToast("No duplicate exercises were found.");
+    const preview = duplicates.slice(0, 5).map(group => group.map(x => x.name).join(" / ")).join("\n");
+    const confirmed = await askConfirm(
+      `Merge ${duplicates.length} duplicate group${duplicates.length === 1 ? "" : "s"}?`,
+      `${preview}${duplicates.length > 5 ? "\n…" : ""}\n\nSaved workouts and routines will be updated before duplicate records are removed.`
+    );
+    if (!confirmed) return;
+    let removed = 0;
+    for (const group of duplicates) {
+      const ordered = [...group].sort((a,b) => Number(Boolean(b.builtIn)) - Number(Boolean(a.builtIn)) || String(a.name).length - String(b.name).length);
+      const primary = ordered[0];
+      const duplicateIds = new Set(ordered.slice(1).map(x => x.id));
+      for (const workout of workouts) {
+        let changed = false;
+        (workout.exercises || []).forEach(entry => {
+          if (duplicateIds.has(entry.exerciseId)) { entry.exerciseId = primary.id; entry.exerciseName = primary.name; changed = true; }
+        });
+        (workout.rounds || []).forEach(round => (round.exercises || []).forEach(entry => {
+          if (duplicateIds.has(entry.exerciseId)) { entry.exerciseId = primary.id; entry.exerciseName = primary.name; changed = true; }
+        }));
+        if (changed) await setDoc(userDoc("workouts", workout.id), { exercises: workout.exercises || [], rounds: workout.rounds || [], updatedAt: serverTimestamp() }, { merge:true });
+      }
+      for (const routine of routines) {
+        let changed = false;
+        (routine.blocks || []).forEach(block => (block.exercises || []).forEach(entry => {
+          if (duplicateIds.has(entry.exerciseId)) { entry.exerciseId = primary.id; changed = true; }
+        }));
+        if (changed) await setDoc(userDoc("routines", routine.id), { blocks:routine.blocks, updatedAt:serverTimestamp() }, { merge:true });
+      }
+      for (const duplicate of ordered.slice(1)) { await deleteDoc(userDoc("exercises", duplicate.id)); removed++; }
+    }
+    exercises = await loadCollection("exercises");
+    exercises.sort((a,b)=>String(a.name).localeCompare(String(b.name)));
+    renderExerciseSelects(); renderExerciseLibrary(); renderRoutines(); renderHistory(); renderPBs();
+    showToast(`${removed} duplicate exercise record${removed === 1 ? "" : "s"} merged successfully.`);
+  } catch (error) {
+    console.error(error);
+    showToast(error.message || "Duplicate exercises could not be merged.");
+  } finally {
+    if (button) { button.disabled = false; button.textContent = "Merge duplicate exercises"; }
   }
-  exercises=await loadCollection("exercises");exercises.sort((a,b)=>a.name.localeCompare(b.name));renderExerciseSelects();renderExerciseLibrary();renderRoutines();renderHistory();renderPBs();showToast("Duplicate exercises merged without deleting workout history.");
 }
 
 async function loadCollection(name) {
@@ -796,7 +859,8 @@ async function saveExercise() {
   const name = $("exName").value.trim();
   if (!name) return showToast("Enter an exercise name.");
   const editingId = $("editingExerciseId").value;
-  const duplicate = exercises.find((entry) => entry.id !== editingId && entry.name.trim().toLowerCase() === name.toLowerCase());
+  const normalisedName = normaliseExerciseName(name);
+  const duplicate = exercises.find((entry) => entry.id !== editingId && normaliseExerciseName(entry.name) === normalisedName);
   if (duplicate) return showToast(`“${duplicate.name}” already exists in your exercise library.`);
   const id = editingId || `${name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")}-${Date.now().toString().slice(-5)}`;
   const exercise = {
@@ -837,18 +901,57 @@ function blankRoutineBlock() {
   };
 }
 
+function routineTypeQuestionMarkup(type){
+  if (type === "superset") return `<div class="routine-question-grid"><label>How many supersets?<input id="routineGroupCount" type="number" min="1" max="12" value="4"></label><label>Exercises per superset<input id="routineExercisesPerGroup" type="number" min="2" max="8" value="2"></label></div>`;
+  if (type === "circuit") return `<div class="routine-question-grid"><label>Exercises in the circuit<input id="routineExerciseCount" type="number" min="2" max="20" value="6"></label><label>How many circuit rounds?<input id="routineRepeatCount" type="number" min="1" max="10" value="3"></label></div>`;
+  if (type === "ladder-down" || type === "ladder-up") return `<div class="routine-question-grid"><label>Exercises in the ladder<input id="routineExerciseCount" type="number" min="1" max="10" value="2"></label><label>Starting reps<input id="routineStartReps" type="number" min="1" max="100" value="${type === "ladder-down" ? 10 : 1}"></label><label>Ending reps<input id="routineEndReps" type="number" min="1" max="100" value="${type === "ladder-down" ? 1 : 10}"></label></div>`;
+  return `<div class="routine-question-grid"><label>How many exercises?<input id="routineExerciseCount" type="number" min="1" max="30" value="4"></label></div>`;
+}
+function renderRoutineTypeQuestions(){
+  const target = $("routineTypeQuestions");
+  if (!target) return;
+  target.innerHTML = routineTypeQuestionMarkup($("routineType")?.value || "standard");
+}
+function generateRoutineTemplate(){
+  const type = $("routineType")?.value || "standard";
+  const firstExercise = exercises[0]?.id || "";
+  const makeExercises = count => Array.from({length:Math.max(1, count)}, () => ({ exerciseId:firstExercise }));
+  if (type === "superset") {
+    const groups = Math.max(1, number($("routineGroupCount")?.value, 4));
+    const perGroup = Math.max(2, number($("routineExercisesPerGroup")?.value, 2));
+    routineDraftBlocks = Array.from({length:groups}, (_,i) => ({ id:crypto.randomUUID(), name:`Superset ${i+1}`, rounds:1, restAfterRound:0, exercises:makeExercises(perGroup) }));
+  } else if (type === "circuit") {
+    const count = Math.max(2, number($("routineExerciseCount")?.value, 6));
+    const repeats = Math.max(1, number($("routineRepeatCount")?.value, 3));
+    routineDraftBlocks = [{ id:crypto.randomUUID(), name:"Circuit", rounds:repeats, restAfterRound:0, exercises:makeExercises(count) }];
+  } else if (type === "ladder-down" || type === "ladder-up") {
+    const count = Math.max(1, number($("routineExerciseCount")?.value, 2));
+    const startReps = Math.max(1, number($("routineStartReps")?.value, type === "ladder-down" ? 10 : 1));
+    const endReps = Math.max(1, number($("routineEndReps")?.value, type === "ladder-down" ? 1 : 10));
+    routineDraftBlocks = [{ id:crypto.randomUUID(), name:type === "ladder-down" ? "Ladder 10 → 1" : "Ladder 1 → 10", rounds:1, restAfterRound:0, startReps, endReps, exercises:makeExercises(count) }];
+  } else {
+    const count = Math.max(1, number($("routineExerciseCount")?.value, 4));
+    routineDraftBlocks = makeExercises(count).map((exercise,i) => ({ id:crypto.randomUUID(), name:`Exercise ${i+1}`, rounds:1, restAfterRound:0, exercises:[exercise] }));
+  }
+  renderRoutineBlocks();
+  showToast("Routine structure generated. Choose the exercises, then save.");
+}
+
 function openRoutineEditor(routine = null) {
   editingRoutineId = routine?.id || null;
   $("routineEditorTitle").textContent = routine ? `Edit ${routine.name}` : "New routine";
   $("routineName").value = routine?.name || "";
   $("routineDay").value = routine?.day || "";
   if ($("routineType")) $("routineType").value = routine?.type || "standard";
+  renderRoutineTypeQuestions();
   routineDraftBlocks = routine?.blocks
     ? structuredClone(routine.blocks).map((block, index) => ({
         id: block.id || crypto.randomUUID(),
         name: `Round ${index + 1}`,
-        rounds: 1,
+        rounds: number(block.rounds, 1),
         restAfterRound: 0,
+        startReps: block.startReps || null,
+        endReps: block.endReps || null,
         exercises: (block.exercises || []).map(entry => ({ exerciseId: entry.exerciseId }))
       }))
     : [blankRoutineBlock()];
@@ -917,8 +1020,10 @@ async function saveRoutine() {
       id: block.id || crypto.randomUUID(),
       order: index,
       name: `Round ${index + 1}`,
-      rounds: 1,
+      rounds: number(block.rounds, 1),
       restAfterRound: 0,
+      startReps: block.startReps || null,
+      endReps: block.endReps || null,
       exercises: block.exercises.map((entry) => ({ exerciseId: entry.exerciseId }))
     })),
     updatedAt: serverTimestamp()
@@ -976,30 +1081,13 @@ function startRoutine(id) {
     currentBlockIndex: 0
   };
   manualRounds = [];
-  $("routineSortSelect")?.addEventListener("change",event=>{routineSortMode=event.target.value;renderRoutines();});
-$("classDayFilter")?.addEventListener("change",event=>{classDayFilter=event.target.value;renderClasses();});
-$("roundExerciseList")?.addEventListener("input",event=>{if(!event.target.matches("[data-exercise-filter]"))return;const card=event.target.closest("[data-group-uid]");const select=card?.querySelector("[data-group-field=exerciseId]");if(!select)return;const q=event.target.value.trim().toLowerCase();[...select.options].forEach(o=>o.hidden=q&&!o.text.toLowerCase().includes(q));});
-
-$("roundExerciseList")?.addEventListener("change", event => {
-  const radio = event.target.closest("[data-timer-mode]");
-  if (!radio) return;
-  const card = radio.closest("[data-group-uid]");
-  const item = manualGroupExercises.find(row => row.uid === card?.dataset.groupUid);
-  if (!item) return;
-  item.timerMode = radio.dataset.timerMode;
-  if (item.timerMode === "stopwatch") { item.timedRunning=false; item.timedStartedAt=null; item.timedElapsedMs=0; item.reps=0; }
-  markWorkoutDraftDirty(); renderManualRound();
-});
-$("roundExerciseList")?.addEventListener("click",event=>{const btn=event.target.closest("[data-view-exercise]");if(!btn)return;const card=btn.closest("[data-group-uid]");const id=card?.querySelector("[data-group-field=exerciseId]")?.value;const ex=exerciseById(id);if(!ex)return;$("exerciseInfoTitle").textContent=ex.name;$("exerciseInfoBody").innerHTML=`<p><strong>Category:</strong> ${escapeHtml(ex.category||"Other")}</p><p><strong>Equipment:</strong> ${escapeHtml(ex.equipment||"None")}</p><p><strong>Tracking:</strong> ${escapeHtml(ex.inputType||"repsWeight")}</p><p>${escapeHtml(ex.instructions||"Exercise instructions and video will be added here.")}</p>${ex.videoUrl?`<p><a class="primary button-link" target="_blank" rel="noopener" href="${escapeHtml(ex.videoUrl)}">Open video</a></p>`:""}`;$("exerciseInfoDialog").showModal();});
-$("exerciseInfoClose")?.addEventListener("click",()=>$("exerciseInfoDialog").close());
-$("workoutDate").value = today();
-  $("routineSessionCard").classList.add("hidden");
+  $("routineSessionCard")?.classList.add("hidden");
   $("manualWorkoutCard")?.classList.remove("hidden");
   $("manualSetCard")?.classList.remove("hidden");
   loadRoutineRound(0);
   persistActiveWorkoutDraft();
   switchTab("workout");
-  showToast(`${routine.name} loaded. Save each set, then use Next round.`);
+  showToast(`${routine.name} loaded.`);
 }
 
 function currentRoutineStep() {
@@ -1379,7 +1467,7 @@ async function deleteWorkoutById(id){
   $("historyDialog")?.close(); $("workoutEditDialog")?.close(); renderHistory(); renderPBs(); renderExerciseLibrary(); showToast("Workout deleted.");
 }
 function openWorkoutHistory(id){const workout=workouts.find(w=>w.id===id);if(!workout)return;$("historyDialogTitle").textContent=workout.routineName||`Workout — ${formatDate(workout.date)}`;$("historyDialogBody").innerHTML=workoutDetailHtml(workout)+`<button class="danger wide top-gap" data-dialog-delete-workout="${escapeHtml(workout.id)}" type="button">Delete workout</button>`;$("historyDialog").showModal();}
-function openWorkoutEdit(id){const workout=workouts.find(w=>w.id===id);if(!workout)return;editingWorkoutId=id;$("workoutEditBody").innerHTML=`<label>Date<input id="editWorkoutDate" type="date" value="${escapeHtml(workout.date||today())}"/></label><label>Workout name<input id="editWorkoutName" value="${escapeHtml(workout.routineName||"")}" placeholder="Optional name"/></label>${(workout.exercises||[]).map((entry,ei)=>`<div class="edit-exercise-block"><h4>${escapeHtml(entry.exerciseName||"Exercise")}</h4>${(entry.sets||[]).map((set,si)=>`<div class="edit-set-row" data-edit-set="${ei}:${si}"><label>Reps/sec<input data-edit-field="reps" inputmode="decimal" value="${number(set.reps)}"/></label><label>Weight<input data-edit-field="weight" inputmode="decimal" value="${number(set.weight)}"/></label><label>Side<select data-edit-field="side"><option value="both" ${(set.side||"both")==="both"?"selected":""}>Both</option><option value="left" ${set.side==="left"?"selected":""}>Left</option><option value="right" ${set.side==="right"?"selected":""}>Right</option></select></label></div>`).join("")}</div>`).join("")}<button class="danger wide top-gap" data-dialog-delete-workout="${escapeHtml(workout.id)}" type="button">Delete workout</button>`;$("workoutEditDialog").showModal();}
+function openWorkoutEdit(id){const workout=workouts.find(w=>w.id===id);if(!workout)return;editingWorkoutId=id;$("workoutEditBody").innerHTML=`<label>Date<input id="editWorkoutDate" type="date" value="${escapeHtml(workout.date||today())}"/></label><label>Workout name<input id="editWorkoutName" value="${escapeHtml(workout.routineName||"")}" placeholder="Optional name"/></label>${(workout.exercises||[]).map((entry,ei)=>`<div class="edit-exercise-block"><h4>${escapeHtml(entry.exerciseName||"Exercise")}</h4>${(entry.sets||[]).map((set,si)=>`<div class="edit-set-row" data-edit-set="${ei}:${si}"><label>Reps/sec<input data-edit-field="reps" inputmode="decimal" value="${number(set.reps)}"/></label><label>Weight<input data-edit-field="weight" inputmode="decimal" value="${number(set.weight)}"/></label><label>Side<select data-edit-field="side"><option value="both" ${(set.side||"both")==="both"?"selected":""}>Both</option><option value="left" ${set.side==="left"?"selected":""}>Left</option><option value="right" ${set.side==="right"?"selected":""}>Right</option></select></label></div>`).join("")}</div>`).join("")}<div class="workout-edit-footer"><button class="danger wide" data-dialog-delete-workout="${escapeHtml(workout.id)}" type="button">Delete workout</button></div>`;$("workoutEditDialog").showModal();}
 async function saveWorkoutEdit(){const workout=workouts.find(w=>w.id===editingWorkoutId);if(!workout)return;const updated=structuredClone(workout);updated.date=$("editWorkoutDate").value||today();updated.routineName=$("editWorkoutName").value.trim()||null;document.querySelectorAll("[data-edit-set]").forEach(row=>{const [ei,si]=row.dataset.editSet.split(":").map(number);row.querySelectorAll("[data-edit-field]").forEach(input=>{const field=input.dataset.editField;updated.exercises[ei].sets[si][field]=field==="side"?input.value:number(input.value);});});const payload={date:updated.date,routineName:updated.routineName,exercises:updated.exercises,updatedAt:serverTimestamp()};await setDoc(userDoc("workouts",updated.id),payload,{merge:true});const idx=workouts.findIndex(w=>w.id===updated.id);workouts[idx]={...workouts[idx],...payload};$("workoutEditDialog").close();renderHistory();renderPBs();showToast("Workout updated.");}
 async function copyWorkoutToRoutine(id){const workout=workouts.find(w=>w.id===id);if(!workout)return;const blocks=workoutRounds(workout).map((round,index)=>({id:crypto.randomUUID(),order:index,name:`Round ${index+1}`,rounds:1,restAfterRound:0,exercises:(round.exercises||[]).map(entry=>({exerciseId:entry.exerciseId}))}));const payload={name:`Copy of ${workout.routineName||formatDate(workout.date)}`,day:"",blocks,createdAt:serverTimestamp(),updatedAt:serverTimestamp()};const ref=await addDoc(userCollection("routines"),payload);routines.push({id:ref.id,...payload});routines.sort((a,b)=>a.name.localeCompare(b.name));renderRoutines();showToast("Workout copied to Routines with its round groupings preserved.");}
 
@@ -1637,6 +1725,22 @@ $("saveClassBtn")?.addEventListener("click",saveClass);
 $("classList")?.addEventListener("click",event=>{const edit=event.target.closest("[data-edit-class]");if(edit)return openClassDialog(classes.find(x=>x.id===edit.dataset.editClass));const del=event.target.closest("[data-delete-class]");if(del)return deleteClass(del.dataset.deleteClass);});
 
 // Delegated events
+$("roundExerciseList")?.addEventListener("change", event => {
+  const radio = event.target.closest("[data-timer-mode]");
+  if (!radio) return;
+  const card = radio.closest("[data-group-uid]");
+  const item = manualGroupExercises.find(row => row.uid === card?.dataset.groupUid);
+  if (!item) return;
+  item.timerMode = radio.dataset.timerMode;
+  item.timedRunning = false;
+  item.timedStartedAt = null;
+  item.timedElapsedMs = 0;
+  if (item.timerMode === "stopwatch") item.reps = 0;
+  markWorkoutDraftDirty();
+  renderManualRound();
+});
+$("routineType")?.addEventListener("change", renderRoutineTypeQuestions);
+$("generateRoutineTemplateBtn")?.addEventListener("click", generateRoutineTemplate);
 $("roundExerciseList").onclick = (event) => {
   const card = event.target.closest("[data-group-uid]"); if (!card) return;
   const item = manualGroupExercises.find(entry => entry.uid === card.dataset.groupUid); if (!item) return;
