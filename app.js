@@ -97,42 +97,36 @@ let workoutDraftDirty = false;
 let timedExerciseTicker = null;
 
 const starterExercises = [
-  { id: "leg-press", name: "Leg Press", category: "Legs", mode: "standard", inputType: "repsWeight", equipment: "Machine", defaultReps: 10, defaultWeight: 0, weightStep: 5, restSeconds: 60 },
-  { id: "underhand-lat-pulldown", name: "Underhand Lat Pulldown", category: "Pull", mode: "standard", inputType: "repsWeight", equipment: "Cable machine", defaultReps: 10, defaultWeight: 0, weightStep: 2.5, restSeconds: 60 },
-  { id: "romanian-deadlift", name: "Romanian Deadlift", category: "Legs", mode: "standard", inputType: "repsWeight", equipment: "Barbell or dumbbells", defaultReps: 10, defaultWeight: 0, weightStep: 2.5, restSeconds: 60 },
-  { id: "face-pull", name: "Face Pull", category: "Pull", mode: "standard", inputType: "repsWeight", equipment: "Cable", defaultReps: 12, defaultWeight: 0, weightStep: 2.5, restSeconds: 45 },
-  { id: "single-leg-rdl", name: "Single-leg Romanian Deadlift", category: "Legs", mode: "leftRight", inputType: "repsWeight", equipment: "Dumbbell", defaultReps: 10, defaultWeight: 0, weightStep: 1, restSeconds: 45 },
-  { id: "goblet-squat", name: "Goblet Squat", category: "Legs", mode: "standard", inputType: "repsWeight", equipment: "Dumbbell", defaultReps: 10, defaultWeight: 0, weightStep: 2, restSeconds: 60 },
-  { id: "dead-hang", name: "Dead Hang", category: "Pull", mode: "standard", inputType: "time", equipment: "Pull-up bar", defaultReps: 30, defaultWeight: 0, weightStep: 1, restSeconds: 60 },
-  { id: "wall-sit", name: "Wall Sit", category: "Legs", mode: "standard", inputType: "time", equipment: "Bodyweight", defaultReps: 40, defaultWeight: 0, weightStep: 1, restSeconds: 60 },
-  { id: "chest-press", name: "Chest Press", category: "Push", mode: "standard", inputType: "repsWeight", equipment: "Machine", defaultReps: 10, defaultWeight: 0, weightStep: 2.5, restSeconds: 60 },
-  { id: "tricep-pushdown", name: "Tricep Pushdown", category: "Push", mode: "standard", inputType: "repsWeight", equipment: "Cable", defaultReps: 10, defaultWeight: 0, weightStep: 2.5, restSeconds: 45 },
-  { id: "shoulder-press", name: "Shoulder Press", category: "Push", mode: "standard", inputType: "repsWeight", equipment: "Machine or dumbbells", defaultReps: 10, defaultWeight: 0, weightStep: 1, restSeconds: 60 },
-  { id: "tricep-overhead-extension", name: "Tricep Overhead Extension", category: "Push", mode: "standard", inputType: "repsWeight", equipment: "Cable or dumbbell", defaultReps: 10, defaultWeight: 0, weightStep: 1, restSeconds: 45 },
-  { id: "chest-fly", name: "Chest Fly", category: "Push", mode: "standard", inputType: "repsWeight", equipment: "Machine or cable", defaultReps: 10, defaultWeight: 0, weightStep: 1, restSeconds: 45 },
-  { id: "lateral-raise", name: "Lateral Raise", category: "Push", mode: "standard", inputType: "repsWeight", equipment: "Dumbbells", defaultReps: 12, defaultWeight: 0, weightStep: 0.5, restSeconds: 45 },
-  { id: "plank", name: "Plank", category: "Core", mode: "standard", inputType: "time", equipment: "Bodyweight", defaultReps: 40, defaultWeight: 0, weightStep: 1, restSeconds: 60 },
-  { id: "lateral-pulldown", name: "Lat Pulldown", category: "Pull", mode: "standard", inputType: "repsWeight", equipment: "Cable machine", defaultReps: 10, defaultWeight: 0, weightStep: 2.5, restSeconds: 60 },
-  { id: "hammer-curl", name: "Hammer Curl", category: "Pull", mode: "standard", inputType: "repsWeight", equipment: "Dumbbells", defaultReps: 10, defaultWeight: 0, weightStep: 1, restSeconds: 45 },
-  { id: "seated-cable-row", name: "Seated Cable Row", category: "Pull", mode: "standard", inputType: "repsWeight", equipment: "Cable machine", defaultReps: 10, defaultWeight: 0, weightStep: 2.5, restSeconds: 60 },
-  { id: "straight-arm-pushdown", name: "Straight Arm Pushdown", category: "Pull", mode: "standard", inputType: "repsWeight", equipment: "Cable", defaultReps: 10, defaultWeight: 0, weightStep: 2.5, restSeconds: 45 },
-  { id: "pullover", name: "Pullover", category: "Pull", mode: "standard", inputType: "repsWeight", equipment: "Dumbbell", defaultReps: 10, defaultWeight: 0, weightStep: 1, restSeconds: 45 },
-  { id: "dead-bug", name: "Dead Bug", category: "Core", mode: "standard", inputType: "repsOnly", equipment: "Bodyweight", defaultReps: 10, defaultWeight: 0, weightStep: 1, restSeconds: 45 },
-  { id: "bicep-curl", name: "Bicep Curl", category: "Pull", mode: "sideOptional", inputType: "repsWeight", equipment: "Dumbbell or cable", defaultReps: 10, defaultWeight: 0, weightStep: 1, restSeconds: 45 },
-  { id: "cable-chin-up-machine", name: "Cable - Chin Up Machine", category: "Pull", mode: "standard", inputType: "repsWeight", equipment: "Cable machine", defaultReps: 10, defaultWeight: 0, weightStep: 2.5, restSeconds: 60 },
-  { id: "cable-pull-across-body", name: "Cable - Pull Across Body", category: "Pull", mode: "sideOptional", inputType: "repsWeight", equipment: "Cable", defaultReps: 10, defaultWeight: 0, weightStep: 1, restSeconds: 45 },
-  { id: "calf-raises", name: "Calf Raises", category: "Legs", mode: "standard", inputType: "repsWeight", equipment: "Machine or bodyweight", defaultReps: 12, defaultWeight: 0, weightStep: 2.5, restSeconds: 45 },
-  { id: "chin-up-machine", name: "Chin Up Machine", category: "Pull", mode: "standard", inputType: "repsWeight", equipment: "Assisted machine", defaultReps: 8, defaultWeight: 0, weightStep: 2.5, restSeconds: 60 },
-  { id: "deadlift", name: "Deadlift", category: "Legs", mode: "standard", inputType: "repsWeight", equipment: "Barbell", defaultReps: 8, defaultWeight: 0, weightStep: 2.5, restSeconds: 90 },
-  { id: "hanging-knee-raises", name: "Hanging Knee Raises", category: "Core", mode: "standard", inputType: "repsOnly", equipment: "Pull-up bar", defaultReps: 10, defaultWeight: 0, weightStep: 1, restSeconds: 45 },
-  { id: "lunges", name: "Lunges", category: "Legs", mode: "leftRight", inputType: "repsWeight", equipment: "Bodyweight or dumbbells", defaultReps: 10, defaultWeight: 0, weightStep: 1, restSeconds: 60 },
-  { id: "pullover-db-bb", name: "Pullover - DB/BB", category: "Pull", mode: "standard", inputType: "repsWeight", equipment: "Dumbbell or barbell", defaultReps: 10, defaultWeight: 0, weightStep: 1, restSeconds: 45 },
-  { id: "front-raises", name: "Raises - Front", category: "Push", mode: "standard", inputType: "repsWeight", equipment: "Dumbbells", defaultReps: 12, defaultWeight: 0, weightStep: 0.5, restSeconds: 45 },
-  { id: "side-raises", name: "Raises - Side", category: "Push", mode: "standard", inputType: "repsWeight", equipment: "Dumbbells", defaultReps: 12, defaultWeight: 0, weightStep: 0.5, restSeconds: 45 },
-  { id: "seated-row", name: "Row - Seated", category: "Pull", mode: "standard", inputType: "repsWeight", equipment: "Machine", defaultReps: 10, defaultWeight: 0, weightStep: 2.5, restSeconds: 60 },
-  { id: "seated-leg-extension", name: "Seated Extended Leg", category: "Legs", mode: "standard", inputType: "repsWeight", equipment: "Machine", defaultReps: 10, defaultWeight: 0, weightStep: 2.5, restSeconds: 60 },
-  { id: "seated-leg-curl", name: "Seated Leg Curl", category: "Legs", mode: "standard", inputType: "repsWeight", equipment: "Machine", defaultReps: 10, defaultWeight: 0, weightStep: 2.5, restSeconds: 60 },
-  { id: "side-plank", name: "Side Plank", category: "Core", mode: "sideOptional", inputType: "time", equipment: "Bodyweight", defaultReps: 30, defaultWeight: 0, weightStep: 1, restSeconds: 45 }
+  { id:"chest-press",name:"Chest Press",category:"Push",mode:"standard",inputType:"repsWeight",equipment:"Machine",defaultReps:10,defaultWeight:0,weightStep:2.5,restSeconds:60 },
+  { id:"chest-fly",name:"Chest Fly",category:"Push",mode:"standard",inputType:"repsWeight",equipment:"Machine or cable",defaultReps:10,defaultWeight:0,weightStep:1,restSeconds:45 },
+  { id:"shoulder-press",name:"Shoulder Press",category:"Push",mode:"standard",inputType:"repsWeight",equipment:"Machine or dumbbells",defaultReps:10,defaultWeight:0,weightStep:1,restSeconds:60 },
+  { id:"lateral-raise",name:"Lateral Raise",category:"Push",mode:"standard",inputType:"repsWeight",equipment:"Dumbbells",defaultReps:12,defaultWeight:0,weightStep:.5,restSeconds:45 },
+  { id:"tricep-pushdown",name:"Tricep Pushdown",category:"Push",mode:"standard",inputType:"repsWeight",equipment:"Cable",defaultReps:10,defaultWeight:0,weightStep:2.5,restSeconds:45 },
+  { id:"overhead-tricep-extension",name:"Overhead Tricep Extension",category:"Push",mode:"standard",inputType:"repsWeight",equipment:"Cable or dumbbell",defaultReps:10,defaultWeight:0,weightStep:1,restSeconds:45 },
+  { id:"lat-pulldown",name:"Lat Pulldown",category:"Pull",mode:"standard",inputType:"repsWeight",equipment:"Cable machine",defaultReps:10,defaultWeight:0,weightStep:2.5,restSeconds:60 },
+  { id:"assisted-chin-up",name:"Assisted Chin-up",category:"Pull",mode:"standard",inputType:"repsWeight",equipment:"Assisted machine",defaultReps:8,defaultWeight:0,weightStep:2.5,restSeconds:60 },
+  { id:"seated-cable-row",name:"Seated Cable Row",category:"Pull",mode:"standard",inputType:"repsWeight",equipment:"Cable machine",defaultReps:10,defaultWeight:0,weightStep:2.5,restSeconds:60 },
+  { id:"single-arm-dumbbell-row",name:"Single-arm Dumbbell Row",category:"Pull",mode:"sideOptional",inputType:"repsWeight",equipment:"Dumbbell",defaultReps:10,defaultWeight:0,weightStep:1,restSeconds:60 },
+  { id:"face-pull",name:"Face Pull",category:"Pull",mode:"standard",inputType:"repsWeight",equipment:"Cable",defaultReps:12,defaultWeight:0,weightStep:2.5,restSeconds:45 },
+  { id:"bicep-curl",name:"Bicep Curl",category:"Pull",mode:"sideOptional",inputType:"repsWeight",equipment:"Dumbbell or cable",defaultReps:10,defaultWeight:0,weightStep:1,restSeconds:45 },
+  { id:"hammer-curl",name:"Hammer Curl",category:"Pull",mode:"sideOptional",inputType:"repsWeight",equipment:"Dumbbells",defaultReps:10,defaultWeight:0,weightStep:1,restSeconds:45 },
+  { id:"pullover",name:"Pullover",category:"Pull",mode:"standard",inputType:"repsWeight",equipment:"Dumbbell or barbell",defaultReps:10,defaultWeight:0,weightStep:1,restSeconds:45 },
+  { id:"dead-hang",name:"Dead Hang",category:"Pull",mode:"standard",inputType:"time",equipment:"Pull-up bar",defaultReps:30,defaultWeight:0,weightStep:1,restSeconds:60 },
+  { id:"leg-press",name:"Leg Press",category:"Legs",mode:"standard",inputType:"repsWeight",equipment:"Machine",defaultReps:10,defaultWeight:0,weightStep:5,restSeconds:60 },
+  { id:"goblet-squat",name:"Goblet Squat",category:"Legs",mode:"standard",inputType:"repsWeight",equipment:"Dumbbell",defaultReps:10,defaultWeight:0,weightStep:2,restSeconds:60 },
+  { id:"romanian-deadlift",name:"Romanian Deadlift",category:"Legs",mode:"standard",inputType:"repsWeight",equipment:"Barbell or dumbbells",defaultReps:10,defaultWeight:0,weightStep:2.5,restSeconds:60 },
+  { id:"single-leg-rdl",name:"Single-leg Romanian Deadlift",category:"Legs",mode:"leftRight",inputType:"repsWeight",equipment:"Dumbbell",defaultReps:10,defaultWeight:0,weightStep:1,restSeconds:45 },
+  { id:"deadlift",name:"Deadlift",category:"Legs",mode:"standard",inputType:"repsWeight",equipment:"Barbell",defaultReps:8,defaultWeight:0,weightStep:2.5,restSeconds:90 },
+  { id:"lunges",name:"Lunges",category:"Legs",mode:"leftRight",inputType:"repsWeight",equipment:"Bodyweight or dumbbells",defaultReps:10,defaultWeight:0,weightStep:1,restSeconds:60 },
+  { id:"calf-raises",name:"Calf Raises",category:"Legs",mode:"standard",inputType:"repsWeight",equipment:"Machine or bodyweight",defaultReps:12,defaultWeight:0,weightStep:2.5,restSeconds:45 },
+  { id:"seated-leg-curl",name:"Seated Leg Curl",category:"Legs",mode:"standard",inputType:"repsWeight",equipment:"Machine",defaultReps:10,defaultWeight:0,weightStep:2.5,restSeconds:60 },
+  { id:"leg-extension",name:"Leg Extension",category:"Legs",mode:"standard",inputType:"repsWeight",equipment:"Machine",defaultReps:10,defaultWeight:0,weightStep:2.5,restSeconds:60 },
+  { id:"wall-sit",name:"Wall Sit",category:"Legs",mode:"standard",inputType:"time",equipment:"Bodyweight",defaultReps:40,defaultWeight:0,weightStep:1,restSeconds:60 },
+  { id:"plank",name:"Plank",category:"Core",mode:"standard",inputType:"time",equipment:"Bodyweight",defaultReps:40,defaultWeight:0,weightStep:1,restSeconds:60 },
+  { id:"side-plank",name:"Side Plank",category:"Core",mode:"sideOptional",inputType:"time",equipment:"Bodyweight",defaultReps:30,defaultWeight:0,weightStep:1,restSeconds:45 },
+  { id:"dead-bug",name:"Dead Bug",category:"Core",mode:"standard",inputType:"repsOnly",equipment:"Bodyweight",defaultReps:10,defaultWeight:0,weightStep:1,restSeconds:45 },
+  { id:"hanging-knee-raise",name:"Hanging Knee Raise",category:"Core",mode:"standard",inputType:"repsOnly",equipment:"Pull-up bar",defaultReps:10,defaultWeight:0,weightStep:1,restSeconds:45 },
+  { id:"bird-dog",name:"Bird Dog",category:"Core",mode:"leftRight",inputType:"repsOnly",equipment:"Bodyweight",defaultReps:10,defaultWeight:0,weightStep:1,restSeconds:45 }
 ];
 
 function userCollection(name) {
@@ -263,7 +257,8 @@ function toggleTimedExercise(uid) {
     item.timedRunning = false;
     item.reps = Math.floor(number(item.timedElapsedMs) / 1000);
   } else {
-    item.timedElapsedMs = Math.max(number(item.timedElapsedMs), number(item.reps) * 1000);
+    if (!item.timedElapsedMs) item.timedElapsedMs = 0;
+    item.reps = Math.floor(number(item.timedElapsedMs) / 1000);
     item.timedStartedAt = Date.now();
     item.timedRunning = true;
     if (!timedExerciseTicker) timedExerciseTicker = setInterval(updateTimedExerciseDisplays, 250);
@@ -323,7 +318,8 @@ async function resetExerciseLibrary() {
     "This deletes every exercise in your library and replaces it with the clean starter list. Saved workout history and body data are not deleted. Routines using a custom exercise may need editing afterwards."
   );
   if (!confirmed) return;
-  const button = $("resetExerciseLibraryBtn");
+  const button = $("mergeDuplicateExercisesBtn")?.addEventListener("click",mergeDuplicateExercises);
+$("resetExerciseLibraryBtn");
   if (button) { button.disabled = true; button.textContent = "Resetting…"; }
   try {
     const snapshot = await getDocs(userCollection("exercises"));
@@ -344,6 +340,19 @@ async function resetExerciseLibrary() {
   } finally {
     if (button) { button.disabled = false; button.textContent = "Reset exercise library"; }
   }
+}
+
+function normaliseExerciseName(value){return String(value||"").toLowerCase().replace(/[^a-z0-9]+/g," ").trim().replace(/\b(cable|machine|db|bb)\b/g,"").replace(/\s+/g," ");}
+async function mergeDuplicateExercises(){
+  const groups=new Map(); exercises.forEach(ex=>{const key=normaliseExerciseName(ex.name);if(!groups.has(key))groups.set(key,[]);groups.get(key).push(ex);});
+  const duplicates=[...groups.values()].filter(group=>group.length>1); if(!duplicates.length)return showToast("No duplicate exercise names found.");
+  if(!await askConfirm("Merge duplicate exercises?",`Found ${duplicates.length} duplicate group${duplicates.length===1?"":"s"}. Workout history and routines will be updated before duplicate records are removed.`))return;
+  for(const group of duplicates){const primary=group.sort((a,b)=>(a.builtIn? -1:1)-(b.builtIn?-1:1))[0];const oldIds=new Set(group.slice(1).map(x=>x.id));
+    for(const workout of workouts){let changed=false;(workout.exercises||[]).forEach(entry=>{if(oldIds.has(entry.exerciseId)){entry.exerciseId=primary.id;entry.exerciseName=primary.name;changed=true;}});(workout.rounds||[]).forEach(round=>(round.exercises||[]).forEach(entry=>{if(oldIds.has(entry.exerciseId)){entry.exerciseId=primary.id;entry.exerciseName=primary.name;changed=true;}}));if(changed)await setDoc(userDoc("workouts",workout.id),{exercises:workout.exercises,rounds:workout.rounds||[]},{merge:true});}
+    for(const routine of routines){let changed=false;(routine.blocks||[]).forEach(block=>(block.exercises||[]).forEach(entry=>{if(oldIds.has(entry.exerciseId)){entry.exerciseId=primary.id;changed=true;}}));if(changed)await setDoc(userDoc("routines",routine.id),{blocks:routine.blocks,updatedAt:serverTimestamp()},{merge:true});}
+    for(const duplicate of group.slice(1))await deleteDoc(userDoc("exercises",duplicate.id));
+  }
+  exercises=await loadCollection("exercises");exercises.sort((a,b)=>a.name.localeCompare(b.name));renderExerciseSelects();renderExerciseLibrary();renderRoutines();renderHistory();renderPBs();showToast("Duplicate exercises merged without deleting workout history.");
 }
 
 async function loadCollection(name) {
@@ -410,7 +419,7 @@ function renderExerciseSelects() {
     if (exercises.some((exercise) => exercise.id === current)) element.value = current;
   });
   if (!manualGroupExercises.length && exercises.length) {
-    manualGroupExercises = [blankGroupExercise(exercises[0]?.id), blankGroupExercise(exercises[1]?.id || exercises[0]?.id)];
+    manualGroupExercises = [blankGroupExercise(exercises[0]?.id)];
   }
   renderManualRound();
 }
@@ -434,26 +443,23 @@ function groupExerciseCard(item, index) {
   if (!exercise) return "";
   const inputType = exerciseInputType(exercise);
   const completed = item.completedSets || [];
-  return `<article class="exercise-round-card flexible-exercise-card" data-group-uid="${item.uid}">
-    <div class="row between gap">
-      <label class="grow">Exercise ${index + 1}<select data-group-field="exerciseId">${exercises.map(ex => `<option value="${escapeHtml(ex.id)}" ${ex.id === item.exerciseId ? "selected" : ""}>${escapeHtml(ex.name)}</option>`).join("")}</select></label>
-      ${manualGroupExercises.length > 1 ? `<button class="ghost small" data-remove-group-exercise type="button">Remove</button>` : ""}
-    </div>
+  const timerMode = item.timerMode || "manual";
+  return `<article class="exercise-round-card flexible-exercise-card compact-v11" data-group-uid="${item.uid}">
+    <div class="exercise-card-heading"><label class="grow">Exercise ${index + 1}<select data-group-field="exerciseId">${exercises.filter(ex=>!ex.archived).map(ex => `<option value="${escapeHtml(ex.id)}" ${ex.id === item.exerciseId ? "selected" : ""}>${escapeHtml(ex.name)}</option>`).join("")}</select></label>${manualGroupExercises.length > 1 ? `<button class="ghost icon-remove" data-remove-group-exercise type="button" aria-label="Remove exercise">×</button>` : ""}</div>
     ${sideOptions(exercise, item.side)}
+    ${inputType === "time" ? `<div class="timer-mode-radios"><label><input type="radio" name="timer-${item.uid}" data-timer-mode="manual" ${timerMode==="manual"?"checked":""}> Manual</label><label><input type="radio" name="timer-${item.uid}" data-timer-mode="stopwatch" ${timerMode==="stopwatch"?"checked":""}> Stopwatch</label></div>` : ""}
     <div class="compact-control-grid">
-      <div class="mini-stepper"><span>${inputType === "time" ? "SECONDS" : "REPS"}</span><div><button data-group-adjust="reps" data-delta="-1" type="button">▼</button><input data-group-field="reps" inputmode="numeric" value="${number(item.reps,10)}"/><button data-group-adjust="reps" data-delta="1" type="button">▲</button></div></div>
+      <div class="mini-stepper"><span>${inputType === "time" ? "SECONDS" : "REPS"}</span><div><button data-group-adjust="reps" data-delta="-1" type="button">▼</button><input data-group-field="reps" inputmode="numeric" value="${number(item.reps,10)}" ${inputType==="time"&&timerMode==="stopwatch"?"readonly":""}/><button data-group-adjust="reps" data-delta="1" type="button">▲</button></div></div>
       <div class="mini-stepper ${inputType !== "repsWeight" ? "hidden" : ""}"><span>WEIGHT (${escapeHtml(settings.unit)})</span><div><button data-group-adjust="weight" data-delta="-1" type="button">▼</button><input data-group-field="weight" inputmode="decimal" value="${number(item.weight)}"/><button data-group-adjust="weight" data-delta="1" type="button">▲</button></div></div>
     </div>
-    ${inputType === "time" ? `<div class="timed-exercise-tools"><strong data-timed-display>${formatDuration(number(item.timedElapsedMs) + (item.timedRunning && item.timedStartedAt ? Date.now()-item.timedStartedAt : 0))}</strong><button class="secondary small" data-timed-toggle type="button">${item.timedRunning ? "Pause" : "Start stopwatch"}</button><button class="ghost small" data-timed-reset type="button">Reset</button><span class="muted">or enter seconds above</span></div>` : ""}
-    <div class="exercise-card-actions"><button class="ghost small" data-view-exercise type="button">Exercise info</button></div>
-    <div class="set-target-row"><button class="secondary small" data-save-single-set type="button">✓ Save set</button></div>
-    <div class="inline-set-list">${completed.map((set, setIndex) => `<button class="saved-set-chip" data-edit-inline-set="${setIndex}" type="button">Set ${setIndex+1}: ${set.inputType === "time" ? `${set.reps}s` : set.inputType === "repsOnly" ? `${set.reps} reps` : `${set.reps} × ${set.weight}${settings.unit}`}${set.side !== "both" ? ` · ${set.side}` : ""} ✎</button>`).join("")}</div>
+    ${inputType === "time" && timerMode === "stopwatch" ? `<div class="timed-exercise-tools"><strong data-timed-display>${formatDuration(number(item.timedElapsedMs)+(item.timedRunning&&item.timedStartedAt?Date.now()-item.timedStartedAt:0))}</strong><button class="secondary small" data-timed-toggle type="button">${item.timedRunning?"Pause":"Start"}</button><button class="ghost small" data-timed-reset type="button">Reset</button></div>` : ""}
+    <div class="exercise-primary-actions"><button class="ghost small" data-view-exercise type="button">Exercise info</button><button class="secondary small" data-save-single-set type="button">✓ Save set</button></div>
+    <div class="inline-set-list">${completed.map((set,setIndex)=>`<button class="saved-set-chip" data-edit-inline-set="${setIndex}" type="button">Set ${setIndex+1}: ${set.inputType==="time"?`${set.reps}s`:set.inputType==="repsOnly"?`${set.reps} reps`:`${set.reps} × ${set.weight}${settings.unit}`}${set.side!=="both"?` · ${set.side}`:""} ✎</button>`).join("")}</div>
   </article>`;
 }
-
 function renderManualRound() {
   if (!$("roundExerciseList")) return;
-  $("roundHeading").textContent = `Round ${manualRoundNumber}`;
+  $("roundHeading").textContent = "Exercises";
   $("roundExerciseList").innerHTML = manualGroupExercises.map(groupExerciseCard).join("");
   renderCompletedRounds();
 }
@@ -561,7 +567,7 @@ function resetManualEntry(keepExercise = false) {
   manualSets = [];
   manualRounds = [];
   manualRoundNumber = 1;
-  manualGroupExercises = [blankGroupExercise(ids[0] || exercises[0]?.id), blankGroupExercise(ids[1] || exercises[1]?.id || exercises[0]?.id)];
+  manualGroupExercises = [blankGroupExercise(ids[0] || exercises[0]?.id)];
   if ($("roundNotes")) $("roundNotes").value = "";
   $("roundNotesWrap")?.classList.add("hidden");
   renderManualRound();
@@ -924,16 +930,12 @@ async function saveRoutine() {
 }
 
 function renderRoutines() {
-  if (!routines.length) {
-    $("routineList").innerHTML = `<p class="muted">No routines yet. Create one by choosing exercises in the order you want to complete them.</p>`;
-    return;
-  }
-  $("routineList").innerHTML = sortedRoutines().map((routine) => {
-    const rounds = (routine.blocks || []).map((block, index) => `<div class="routine-round-preview"><strong>Round ${index + 1}</strong><span>${(block.exercises || []).map((entry) => escapeHtml(exerciseById(entry.exerciseId)?.name || "Missing exercise")).join(" · ")}</span></div>`).join("");
-    return `<div class="item routine-card"><div class="item-title">${escapeHtml(routine.name)}</div>${routine.day ? `<div class="item-meta">${escapeHtml(routine.day)}</div>` : ""}<div class="routine-preview-list">${rounds}</div><div class="item-actions"><button class="primary small" data-start-routine="${escapeHtml(routine.id)}" type="button">Start routine</button><button class="secondary small" data-edit-routine="${escapeHtml(routine.id)}" type="button">Edit</button><button class="danger small" data-delete-routine="${escapeHtml(routine.id)}" type="button">Delete</button></div></div>`;
+  if (!routines.length) { $("routineList").innerHTML=`<p class="muted">No routines yet. Create one to get started.</p>`; return; }
+  $("routineList").innerHTML = sortedRoutines().map((routine,index)=>{
+    const rounds=(routine.blocks||[]).map((block,i)=>`<div class="routine-round-preview"><strong>Round ${i+1}</strong><span>${(block.exercises||[]).map(entry=>escapeHtml(exerciseById(entry.exerciseId)?.name||"Missing exercise")).join(" · ")}</span></div>`).join("");
+    return `<details class="routine-accordion item" ${index===0?"":""}><summary><span><strong>${escapeHtml(routine.name)}</strong>${routine.day?`<small>${escapeHtml(routine.day)}</small>`:""}</span><span class="chevron">⌄</span></summary><div class="routine-expanded">${rounds}<div class="item-actions"><button class="primary small" data-start-routine="${escapeHtml(routine.id)}" type="button">Start</button><button class="secondary small" data-edit-routine="${escapeHtml(routine.id)}" type="button">Edit</button><button class="danger small" data-delete-routine="${escapeHtml(routine.id)}" type="button">Delete</button></div></div></details>`;
   }).join("");
 }
-
 function buildRoutineSequence(routine) {
   return (routine.blocks || []).map((block, blockIndex) => ({
     blockIndex,
@@ -968,6 +970,17 @@ function startRoutine(id) {
   $("routineSortSelect")?.addEventListener("change",event=>{routineSortMode=event.target.value;renderRoutines();});
 $("classDayFilter")?.addEventListener("change",event=>{classDayFilter=event.target.value;renderClasses();});
 $("roundExerciseList")?.addEventListener("input",event=>{if(!event.target.matches("[data-exercise-filter]"))return;const card=event.target.closest("[data-group-uid]");const select=card?.querySelector("[data-group-field=exerciseId]");if(!select)return;const q=event.target.value.trim().toLowerCase();[...select.options].forEach(o=>o.hidden=q&&!o.text.toLowerCase().includes(q));});
+
+$("roundExerciseList")?.addEventListener("change", event => {
+  const radio = event.target.closest("[data-timer-mode]");
+  if (!radio) return;
+  const card = radio.closest("[data-group-uid]");
+  const item = manualGroupExercises.find(row => row.uid === card?.dataset.groupUid);
+  if (!item) return;
+  item.timerMode = radio.dataset.timerMode;
+  if (item.timerMode === "stopwatch") { item.timedRunning=false; item.timedStartedAt=null; item.timedElapsedMs=0; item.reps=0; }
+  markWorkoutDraftDirty(); renderManualRound();
+});
 $("roundExerciseList")?.addEventListener("click",event=>{const btn=event.target.closest("[data-view-exercise]");if(!btn)return;const card=btn.closest("[data-group-uid]");const id=card?.querySelector("[data-group-field=exerciseId]")?.value;const ex=exerciseById(id);if(!ex)return;$("exerciseInfoTitle").textContent=ex.name;$("exerciseInfoBody").innerHTML=`<p><strong>Category:</strong> ${escapeHtml(ex.category||"Other")}</p><p><strong>Equipment:</strong> ${escapeHtml(ex.equipment||"None")}</p><p><strong>Tracking:</strong> ${escapeHtml(ex.inputType||"repsWeight")}</p><p>${escapeHtml(ex.instructions||"Exercise instructions and video will be added here.")}</p>${ex.videoUrl?`<p><a class="primary button-link" target="_blank" rel="noopener" href="${escapeHtml(ex.videoUrl)}">Open video</a></p>`:""}`;$("exerciseInfoDialog").showModal();});
 $("exerciseInfoClose")?.addEventListener("click",()=>$("exerciseInfoDialog").close());
 $("workoutDate").value = today();
@@ -1337,17 +1350,14 @@ function workoutStats(workout) {
   return { exerciseCount, setCount, reps, volume, durationMs:number(workout.durationMs) };
 }
 function renderHistory() {
-  sortWorkoutsByDate();
-  if (!$("historyList")) return;
-  if (!workouts.length) { if($("historyPeriodStats")) $("historyPeriodStats").innerHTML=""; $("historyList").innerHTML = `<p class="muted">No workouts saved yet.</p>`; return; }
-  const now=new Date(); const weekStart=startOfWeek(now); const monthStart=new Date(now.getFullYear(),now.getMonth(),1);
-  const summarise=list=>list.reduce((a,w)=>{const st=workoutStats(w);a.workouts++;a.sets+=st.setCount;a.reps+=st.reps;a.volume+=st.volume;a.duration+=st.durationMs;return a;},{workouts:0,sets:0,reps:0,volume:0,duration:0});
-  const week=summarise(workouts.filter(w=>dateValue(w.date)>=weekStart.getTime())); const month=summarise(workouts.filter(w=>dateValue(w.date)>=monthStart.getTime()));
-  if($("historyPeriodStats")) $("historyPeriodStats").innerHTML=`<div><strong>This week</strong><span>${week.workouts} workouts · ${week.sets} sets · ${Math.round(week.volume).toLocaleString("en-GB")} ${settings.unit}${week.duration?` · ${formatDuration(week.duration)}`:""}</span></div><div><strong>This month</strong><span>${month.workouts} workouts · ${month.sets} sets · ${Math.round(month.volume).toLocaleString("en-GB")} ${settings.unit}${month.duration?` · ${formatDuration(month.duration)}`:""}</span></div>`;
-  $("historyList").innerHTML = workouts.map(workout => {
-    const stats = workoutStats(workout);
-    return `<div class="item history-card compact-history-card"><div class="history-summary-line"><strong>${formatDate(workout.date)}</strong><div class="history-inline-stats"><span>${stats.exerciseCount} exercises</span><span>${stats.setCount} sets</span><span>${stats.reps} reps</span><span>${Math.round(stats.volume).toLocaleString("en-GB")} ${escapeHtml(settings.unit)}</span>${stats.durationMs?`<span>${formatDuration(stats.durationMs)}</span>`:""}</div></div><div class="item-actions four-actions"><button class="secondary small" data-view-workout="${escapeHtml(workout.id)}" type="button">View</button><button class="secondary small" data-edit-workout="${escapeHtml(workout.id)}" type="button">Edit</button><button class="secondary small" data-copy-workout="${escapeHtml(workout.id)}" type="button">Copy</button><button class="danger small" data-delete-workout="${escapeHtml(workout.id)}" type="button">Delete</button></div></div>`;
-  }).join("");
+  sortWorkoutsByDate(); if(!$("historyList")) return;
+  if(!workouts.length){ if($("historyPeriodStats")) $("historyPeriodStats").innerHTML=""; $("historyList").innerHTML=`<p class="muted">No workouts saved yet.</p>`; return; }
+  const now=new Date(), weekStart=startOfWeek(now), monthStart=new Date(now.getFullYear(),now.getMonth(),1);
+  const summarise=list=>list.reduce((a,w)=>{const s=workoutStats(w);a.workouts++;a.sets+=s.setCount;a.volume+=s.volume;a.duration+=s.durationMs;return a;},{workouts:0,sets:0,volume:0,duration:0});
+  const summaryCard=(title,s)=>`<div class="period-summary-card"><strong>${title}</strong><div><span>${s.workouts}<small>workouts</small></span><span>${s.sets}<small>sets</small></span><span>${Math.round(s.volume).toLocaleString("en-GB")}<small>${settings.unit}</small></span><span>${formatDuration(s.duration)}<small>time</small></span></div></div>`;
+  const week=summarise(workouts.filter(w=>dateValue(w.date)>=weekStart.getTime())), month=summarise(workouts.filter(w=>dateValue(w.date)>=monthStart.getTime()));
+  if($("historyPeriodStats")) $("historyPeriodStats").innerHTML=summaryCard("This week",week)+summaryCard("This month",month);
+  $("historyList").innerHTML=workouts.map(workout=>{const s=workoutStats(workout);return `<div class="item history-card v11-history-card"><strong class="history-date">${formatDate(workout.date)}</strong><div class="history-stat-grid"><span><b>${s.exerciseCount}</b><small>Exercises</small></span><span><b>${s.setCount}</b><small>Sets</small></span><span><b>${s.reps}</b><small>Reps</small></span><span><b>${Math.round(s.volume).toLocaleString("en-GB")}</b><small>${settings.unit}</small></span><span><b>${formatDuration(s.durationMs)}</b><small>Duration</small></span></div><div class="history-action-stack"><button class="secondary small" data-view-workout="${escapeHtml(workout.id)}" type="button">View</button><button class="secondary small" data-edit-workout="${escapeHtml(workout.id)}" type="button">Edit</button><button class="ghost small" data-copy-workout="${escapeHtml(workout.id)}" type="button">Copy</button></div></div>`;}).join("");
 }
 function workoutDetailHtml(workout) {
   const rounds = workoutRounds(workout);
