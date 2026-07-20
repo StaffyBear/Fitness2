@@ -426,6 +426,32 @@ async function mergeDuplicateExercises(){
   }
 }
 
+
+function populateManualMergeDialog(){
+  const keep=$("manualMergeKeep"), sources=$("manualMergeSources");
+  if(!keep||!sources)return;
+  const options=exercises.slice().sort((a,b)=>String(a.name).localeCompare(String(b.name))).map(ex=>`<option value="${escapeHtml(ex.id)}">${escapeHtml(ex.name)}</option>`).join('');
+  keep.innerHTML=options; sources.innerHTML=options;
+  const sync=()=>{[...sources.options].forEach(o=>{o.disabled=o.value===keep.value;if(o.disabled)o.selected=false;});};
+  keep.onchange=sync; sync();
+}
+function openManualMergeDialog(){ populateManualMergeDialog(); $("manualMergeDialog")?.showModal(); }
+async function mergeExerciseIds(primaryId, duplicateIds){
+  const primary=exercises.find(x=>x.id===primaryId); if(!primary)throw new Error('Choose an exercise to keep.');
+  const ids=new Set(duplicateIds.filter(id=>id&&id!==primaryId)); if(!ids.size)throw new Error('Select at least one exercise to merge.');
+  let workoutUpdates=0,routineUpdates=0;
+  for(const workout of workouts){let changed=false;(workout.exercises||[]).forEach(entry=>{if(ids.has(entry.exerciseId)){entry.exerciseId=primary.id;entry.exerciseName=primary.name;changed=true;}});(workout.rounds||[]).forEach(round=>(round.exercises||[]).forEach(entry=>{if(ids.has(entry.exerciseId)){entry.exerciseId=primary.id;entry.exerciseName=primary.name;changed=true;}}));if(changed){await setDoc(userDoc('workouts',workout.id),{exercises:workout.exercises||[],rounds:workout.rounds||[],updatedAt:serverTimestamp()},{merge:true});workoutUpdates++;}}
+  for(const routine of routines){let changed=false;(routine.blocks||[]).forEach(block=>(block.exercises||[]).forEach(entry=>{if(ids.has(entry.exerciseId)){entry.exerciseId=primary.id;changed=true;}}));if(changed){await setDoc(userDoc('routines',routine.id),{blocks:routine.blocks,updatedAt:serverTimestamp()},{merge:true});routineUpdates++;}}
+  for(const id of ids)await deleteDoc(userDoc('exercises',id));
+  exercises=await loadCollection('exercises'); exercises.sort((a,b)=>String(a.name).localeCompare(String(b.name)));
+  renderExerciseSelects();renderExerciseLibrary();renderRoutines();renderHistory();renderPBs();
+  return {removed:ids.size,workoutUpdates,routineUpdates};
+}
+async function confirmManualMerge(){
+  const button=$("confirmManualMergeBtn");
+  try{button.disabled=true;button.textContent='Merging…';const sourceIds=[...$("manualMergeSources").selectedOptions].map(o=>o.value);const result=await mergeExerciseIds($("manualMergeKeep").value,sourceIds);$("manualMergeDialog").close();showToast(`Merged ${result.removed} exercise${result.removed===1?'':'s'}; updated ${result.workoutUpdates} workouts and ${result.routineUpdates} routines.`);}catch(error){showToast(error.message||'Exercises could not be merged.');}finally{button.disabled=false;button.textContent='Merge selected exercises';}
+}
+
 async function loadCollection(name) {
   const snapshot = await getDocs(userCollection(name));
   return snapshot.docs.map((entry) => ({ id: entry.id, ...entry.data() }));
@@ -928,7 +954,7 @@ function generateRoutineTemplate(){
     const count = Math.max(1, number($("routineExerciseCount")?.value, 2));
     const startReps = Math.max(1, number($("routineStartReps")?.value, type === "ladder-down" ? 10 : 1));
     const endReps = Math.max(1, number($("routineEndReps")?.value, type === "ladder-down" ? 1 : 10));
-    routineDraftBlocks = [{ id:crypto.randomUUID(), name:type === "ladder-down" ? "Ladder 10 → 1" : "Ladder 1 → 10", rounds:1, restAfterRound:0, startReps, endReps, exercises:makeExercises(count) }];
+    routineDraftBlocks = [{ id:crypto.randomUUID(), name:type === "ladder-down" ? "Ladder descending — e.g. 10 → 1" : "Ladder ascending — e.g. 1 → 10", rounds:1, restAfterRound:0, startReps, endReps, exercises:makeExercises(count) }];
   } else {
     const count = Math.max(1, number($("routineExerciseCount")?.value, 4));
     routineDraftBlocks = makeExercises(count).map((exercise,i) => ({ id:crypto.randomUUID(), name:`Exercise ${i+1}`, rounds:1, restAfterRound:0, exercises:[exercise] }));
@@ -1467,7 +1493,21 @@ async function deleteWorkoutById(id){
   $("historyDialog")?.close(); $("workoutEditDialog")?.close(); renderHistory(); renderPBs(); renderExerciseLibrary(); showToast("Workout deleted.");
 }
 function openWorkoutHistory(id){const workout=workouts.find(w=>w.id===id);if(!workout)return;$("historyDialogTitle").textContent=workout.routineName||`Workout — ${formatDate(workout.date)}`;$("historyDialogBody").innerHTML=workoutDetailHtml(workout)+`<button class="danger wide top-gap" data-dialog-delete-workout="${escapeHtml(workout.id)}" type="button">Delete workout</button>`;$("historyDialog").showModal();}
-function openWorkoutEdit(id){const workout=workouts.find(w=>w.id===id);if(!workout)return;editingWorkoutId=id;$("workoutEditBody").innerHTML=`<label>Date<input id="editWorkoutDate" type="date" value="${escapeHtml(workout.date||today())}"/></label><label>Workout name<input id="editWorkoutName" value="${escapeHtml(workout.routineName||"")}" placeholder="Optional name"/></label>${(workout.exercises||[]).map((entry,ei)=>`<div class="edit-exercise-block"><h4>${escapeHtml(entry.exerciseName||"Exercise")}</h4>${(entry.sets||[]).map((set,si)=>`<div class="edit-set-row" data-edit-set="${ei}:${si}"><label>Reps/sec<input data-edit-field="reps" inputmode="decimal" value="${number(set.reps)}"/></label><label>Weight<input data-edit-field="weight" inputmode="decimal" value="${number(set.weight)}"/></label><label>Side<select data-edit-field="side"><option value="both" ${(set.side||"both")==="both"?"selected":""}>Both</option><option value="left" ${set.side==="left"?"selected":""}>Left</option><option value="right" ${set.side==="right"?"selected":""}>Right</option></select></label></div>`).join("")}</div>`).join("")}<div class="workout-edit-footer"><button class="danger wide" data-dialog-delete-workout="${escapeHtml(workout.id)}" type="button">Delete workout</button></div>`;$("workoutEditDialog").showModal();}
+function openWorkoutEdit(id){
+  const workout=workouts.find(w=>w.id===id); if(!workout)return;
+  editingWorkoutId=id;
+  const exercisesMarkup=(workout.exercises||[]).map((entry,ei)=>{
+    const sets=entry.sets||[];
+    return `<details class="edit-exercise-accordion" ${ei===0?'open':''}>
+      <summary><span><strong>${escapeHtml(entry.exerciseName||'Exercise')}</strong><small>${sets.length} set${sets.length===1?'':'s'}</small></span><span class="chevron">⌄</span></summary>
+      <div class="edit-exercise-content">${sets.map((set,si)=>`<div class="edit-set-row compact-edit-set" data-edit-set="${ei}:${si}"><span class="set-number">Set ${si+1}</span><label>Reps/sec<input data-edit-field="reps" inputmode="decimal" value="${number(set.reps)}"/></label><label>Weight<input data-edit-field="weight" inputmode="decimal" value="${number(set.weight)}"/></label><label>Side<select data-edit-field="side"><option value="both" ${(set.side||'both')==='both'?'selected':''}>Both</option><option value="left" ${set.side==='left'?'selected':''}>Left</option><option value="right" ${set.side==='right'?'selected':''}>Right</option></select></label></div>`).join('')}</div>
+    </details>`;
+  }).join('');
+  $("workoutEditBody").innerHTML=`<div class="grid two workout-edit-meta"><label>Date<input id="editWorkoutDate" type="date" value="${escapeHtml(workout.date||today())}"/></label><label>Workout name<input id="editWorkoutName" value="${escapeHtml(workout.routineName||'')}" placeholder="Optional name"/></label></div>${exercisesMarkup}`;
+  document.querySelectorAll('.edit-exercise-accordion').forEach(detail=>detail.addEventListener('toggle',()=>{if(detail.open)document.querySelectorAll('.edit-exercise-accordion').forEach(other=>{if(other!==detail)other.open=false;});}));
+  $("editDeleteWorkoutBtn").dataset.workoutId=workout.id;
+  $("workoutEditDialog").showModal();
+}
 async function saveWorkoutEdit(){const workout=workouts.find(w=>w.id===editingWorkoutId);if(!workout)return;const updated=structuredClone(workout);updated.date=$("editWorkoutDate").value||today();updated.routineName=$("editWorkoutName").value.trim()||null;document.querySelectorAll("[data-edit-set]").forEach(row=>{const [ei,si]=row.dataset.editSet.split(":").map(number);row.querySelectorAll("[data-edit-field]").forEach(input=>{const field=input.dataset.editField;updated.exercises[ei].sets[si][field]=field==="side"?input.value:number(input.value);});});const payload={date:updated.date,routineName:updated.routineName,exercises:updated.exercises,updatedAt:serverTimestamp()};await setDoc(userDoc("workouts",updated.id),payload,{merge:true});const idx=workouts.findIndex(w=>w.id===updated.id);workouts[idx]={...workouts[idx],...payload};$("workoutEditDialog").close();renderHistory();renderPBs();showToast("Workout updated.");}
 async function copyWorkoutToRoutine(id){const workout=workouts.find(w=>w.id===id);if(!workout)return;const blocks=workoutRounds(workout).map((round,index)=>({id:crypto.randomUUID(),order:index,name:`Round ${index+1}`,rounds:1,restAfterRound:0,exercises:(round.exercises||[]).map(entry=>({exerciseId:entry.exerciseId}))}));const payload={name:`Copy of ${workout.routineName||formatDate(workout.date)}`,day:"",blocks,createdAt:serverTimestamp(),updatedAt:serverTimestamp()};const ref=await addDoc(userCollection("routines"),payload);routines.push({id:ref.id,...payload});routines.sort((a,b)=>a.name.localeCompare(b.name));renderRoutines();showToast("Workout copied to Routines with its round groupings preserved.");}
 
@@ -1888,6 +1928,10 @@ $("historyList")?.addEventListener("click", async (event) => {
 $("historyDialogClose")?.addEventListener("click",()=>$("historyDialog").close());
 $("historyDialog")?.addEventListener("click",event=>{const b=event.target.closest("[data-dialog-delete-workout]");if(b)deleteWorkoutById(b.dataset.dialogDeleteWorkout);});
 $("workoutEditDialog")?.addEventListener("click",event=>{const b=event.target.closest("[data-dialog-delete-workout]");if(b)deleteWorkoutById(b.dataset.dialogDeleteWorkout);});
+$("manualMergeExercisesBtn")?.addEventListener("click",openManualMergeDialog);
+$("manualMergeClose")?.addEventListener("click",()=>$("manualMergeDialog").close());
+$("confirmManualMergeBtn")?.addEventListener("click",confirmManualMerge);
+$("editDeleteWorkoutBtn")?.addEventListener("click",()=>{const id=$("editDeleteWorkoutBtn").dataset.workoutId;if(id)deleteWorkoutById(id);});
 $("mergeDuplicateExercisesBtn")?.addEventListener("click",mergeDuplicateExercises);
 $("workoutEditClose")?.addEventListener("click",()=>$("workoutEditDialog").close());
 $("saveWorkoutEditBtn")?.addEventListener("click",saveWorkoutEdit);
