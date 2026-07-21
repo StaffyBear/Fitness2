@@ -164,7 +164,7 @@ function sortClasses(){ classes.sort((a,b)=>(dayOrder[a.day]||99)-(dayOrder[b.da
 function sortedRoutines(){ const list=[...routines]; if(routineSortMode==="name") return list.sort((a,b)=>String(a.name||"").localeCompare(String(b.name||""))); if(routineSortMode==="updated") return list.sort((a,b)=>number(b.updatedAt?.seconds)-number(a.updatedAt?.seconds)); if(routineSortMode==="last") return list.sort((a,b)=>dateValue(b.lastPerformedDate)-dateValue(a.lastPerformedDate)); return list.sort((a,b)=>(dayOrder[a.day]||99)-(dayOrder[b.day]||99)||String(a.name||"").localeCompare(String(b.name||""))); }
 function workoutElapsedMs(){ if(!workoutSessionStartedAt)return 0; if(workoutSessionPausedAt)return workoutSessionElapsedBeforePause; return workoutSessionElapsedBeforePause+(Date.now()-workoutSessionStartedAt); }
 function formatDuration(ms){ const total=Math.floor(ms/1000),h=Math.floor(total/3600),m=Math.floor((total%3600)/60),sec=total%60; return h?`${h}:${String(m).padStart(2,"0")}:${String(sec).padStart(2,"0")}`:`${m}:${String(sec).padStart(2,"0")}`; }
-function renderWorkoutSessionTimer(){ const wrap=document.querySelector(".workout-session-clock"); if(wrap)wrap.classList.toggle("hidden",settings.showWorkoutTimer===false); const el=$("workoutSessionTime"); if(el)el.textContent=formatDuration(workoutElapsedMs()); }
+function renderWorkoutSessionTimer(){ const routineCountdown=$("routineCountdownDisplay"); if(routineCountdown){routineCountdown.textContent=routineCountdownText(); if(routineCountdownRemainingMs()<=0)routineCountdown.closest(".routine-countdown")?.classList.add("expired");} const wrap=document.querySelector(".workout-session-clock"); if(wrap)wrap.classList.toggle("hidden",settings.showWorkoutTimer===false); const el=$("workoutSessionTime"); if(el)el.textContent=formatDuration(workoutElapsedMs()); }
 function startWorkoutSessionTimer(){ if(workoutSessionStartedAt&&!workoutSessionPausedAt)return; if(workoutSessionPausedAt){workoutSessionStartedAt=Date.now();workoutSessionPausedAt=null;} else {workoutSessionStartedAt=Date.now();workoutSessionElapsedBeforePause=0;} clearInterval(workoutSessionTicker);workoutSessionTicker=setInterval(renderWorkoutSessionTimer,1000);renderWorkoutSessionTimer();localStorage.setItem("freverActiveWorkoutStart",String(Date.now()-workoutSessionElapsedBeforePause)); }
 function stopWorkoutSessionTimer(){ const ms=workoutElapsedMs();clearInterval(workoutSessionTicker);workoutSessionStartedAt=null;workoutSessionPausedAt=null;workoutSessionElapsedBeforePause=0;localStorage.removeItem("freverActiveWorkoutStart");renderWorkoutSessionTimer();return ms; }
 function ensureWorkoutTimer(){ if(!workoutSessionStartedAt){const saved=number(localStorage.getItem("freverActiveWorkoutStart"));if(saved){workoutSessionStartedAt=Date.now();workoutSessionElapsedBeforePause=Math.max(0,Date.now()-saved);}else startWorkoutSessionTimer();} renderWorkoutSessionTimer(); }
@@ -929,8 +929,8 @@ function blankRoutineBlock() {
 
 function routineTypeQuestionMarkup(type){
   if (type === "superset") return `<div class="routine-question-grid"><label>How many supersets?<input id="routineGroupCount" type="number" min="1" max="12" value="4"></label><label>Exercises per superset<input id="routineExercisesPerGroup" type="number" min="2" max="8" value="2"></label></div>`;
-  if (type === "circuit") return `<div class="routine-question-grid"><label>Exercises in the circuit<input id="routineExerciseCount" type="number" min="2" max="20" value="6"></label><label>How many circuit rounds?<input id="routineRepeatCount" type="number" min="1" max="10" value="3"></label></div>`;
-  if (type === "ladder-down" || type === "ladder-up") return `<div class="routine-question-grid"><label>Exercises in the ladder<input id="routineExerciseCount" type="number" min="1" max="10" value="2"></label><label>Starting reps<input id="routineStartReps" type="number" min="1" max="100" value="${type === "ladder-down" ? 10 : 1}"></label><label>Ending reps<input id="routineEndReps" type="number" min="1" max="100" value="${type === "ladder-down" ? 1 : 10}"></label></div>`;
+  if (type === "circuit") return `<div class="routine-question-grid"><label>Exercises in the circuit<input id="routineExerciseCount" type="number" min="2" max="20" value="6"></label><label>Time cap (minutes)<input id="routineTimeCap" type="number" min="1" max="180" value="10"></label></div>`;
+  if (type === "ladder-down" || type === "ladder-up") return `<div class="routine-question-grid"><label>Exercises in the growing ladder<input id="routineExerciseCount" type="number" min="1" max="20" value="10"></label><label>Starting reps<input id="routineStartReps" type="number" min="1" max="100" value="${type === "ladder-down" ? 10 : 1}"></label><label>Ending reps<input id="routineEndReps" type="number" min="1" max="100" value="${type === "ladder-down" ? 1 : 10}"></label><label>Time cap (minutes)<input id="routineTimeCap" type="number" min="1" max="180" value="15"></label><p class="routine-help">Example: 10, then 10 + 9, then 10 + 9 + 8, continuing until time runs out or the ladder is complete.</p></div>`;
   return `<div class="routine-question-grid"><label>How many exercises?<input id="routineExerciseCount" type="number" min="1" max="30" value="4"></label></div>`;
 }
 function renderRoutineTypeQuestions(){
@@ -948,13 +948,14 @@ function generateRoutineTemplate(){
     routineDraftBlocks = Array.from({length:groups}, (_,i) => ({ id:crypto.randomUUID(), name:`Superset ${i+1}`, rounds:1, restAfterRound:0, exercises:makeExercises(perGroup) }));
   } else if (type === "circuit") {
     const count = Math.max(2, number($("routineExerciseCount")?.value, 6));
-    const repeats = Math.max(1, number($("routineRepeatCount")?.value, 3));
-    routineDraftBlocks = [{ id:crypto.randomUUID(), name:"Circuit", rounds:repeats, restAfterRound:0, exercises:makeExercises(count) }];
+    const timeCapMinutes = Math.max(1, number($("routineTimeCap")?.value, 10));
+    routineDraftBlocks = [{ id:crypto.randomUUID(), name:"Circuit", rounds:1, timeCapMinutes, restAfterRound:0, exercises:makeExercises(count) }];
   } else if (type === "ladder-down" || type === "ladder-up") {
     const count = Math.max(1, number($("routineExerciseCount")?.value, 2));
     const startReps = Math.max(1, number($("routineStartReps")?.value, type === "ladder-down" ? 10 : 1));
     const endReps = Math.max(1, number($("routineEndReps")?.value, type === "ladder-down" ? 1 : 10));
-    routineDraftBlocks = [{ id:crypto.randomUUID(), name:type === "ladder-down" ? "Ladder descending — e.g. 10 → 1" : "Ladder ascending — e.g. 1 → 10", rounds:1, restAfterRound:0, startReps, endReps, exercises:makeExercises(count) }];
+    const timeCapMinutes = Math.max(1, number($("routineTimeCap")?.value, 15));
+    routineDraftBlocks = [{ id:crypto.randomUUID(), name:type === "ladder-down" ? "Growing ladder — e.g. 10 → 1" : "Growing ladder — e.g. 1 → 10", rounds:1, timeCapMinutes, restAfterRound:0, startReps, endReps, exercises:makeExercises(count) }];
   } else {
     const count = Math.max(1, number($("routineExerciseCount")?.value, 4));
     routineDraftBlocks = makeExercises(count).map((exercise,i) => ({ id:crypto.randomUUID(), name:`Exercise ${i+1}`, rounds:1, restAfterRound:0, exercises:[exercise] }));
@@ -978,6 +979,7 @@ function openRoutineEditor(routine = null) {
         restAfterRound: 0,
         startReps: block.startReps || null,
         endReps: block.endReps || null,
+        timeCapMinutes: number(block.timeCapMinutes, 0),
         exercises: (block.exercises || []).map(entry => ({ exerciseId: entry.exerciseId }))
       }))
     : [blankRoutineBlock()];
@@ -1050,6 +1052,7 @@ async function saveRoutine() {
       restAfterRound: 0,
       startReps: block.startReps || null,
       endReps: block.endReps || null,
+      timeCapMinutes: number(block.timeCapMinutes, 0),
       exercises: block.exercises.map((entry) => ({ exerciseId: entry.exerciseId }))
     })),
     updatedAt: serverTimestamp()
@@ -1073,49 +1076,156 @@ function renderRoutines() {
   if (!routines.length) { $("routineList").innerHTML=`<p class="muted">No routines yet. Create one to get started.</p>`; return; }
   $("routineList").innerHTML = sortedRoutines().map((routine,index)=>{
     const rounds=(routine.blocks||[]).map((block,i)=>`<div class="routine-round-preview"><strong>Round ${i+1}</strong><span>${(block.exercises||[]).map(entry=>escapeHtml(exerciseById(entry.exerciseId)?.name||"Missing exercise")).join(" · ")}</span></div>`).join("");
-    return `<details class="routine-accordion item" ${index===0?"":""}><summary><span><strong>${escapeHtml(routine.name)}</strong>${routine.day?`<small>${escapeHtml(routine.day)}</small>`:""}</span><span class="chevron">⌄</span></summary><div class="routine-expanded">${rounds}<div class="item-actions"><button class="primary small" data-start-routine="${escapeHtml(routine.id)}" type="button">Start</button><button class="secondary small" data-edit-routine="${escapeHtml(routine.id)}" type="button">Edit</button><button class="danger small" data-delete-routine="${escapeHtml(routine.id)}" type="button">Delete</button></div></div></details>`;
+    return `<details class="routine-accordion item" ${index===0?"":""}><summary><span><strong>${escapeHtml(routine.name)}</strong>${routine.day?`<small>${escapeHtml(routine.day)}</small>`:""}</span><span class="routine-type-pill">${escapeHtml((routine.type||"standard").replace("ladder-down","growing ladder").replace("ladder-up","growing ladder"))}</span><span class="chevron">⌄</span></summary><div class="routine-expanded">${rounds}<div class="item-actions"><button class="primary small" data-start-routine="${escapeHtml(routine.id)}" type="button">Start</button><button class="secondary small" data-edit-routine="${escapeHtml(routine.id)}" type="button">Edit</button><button class="danger small" data-delete-routine="${escapeHtml(routine.id)}" type="button">Delete</button></div></div></details>`;
   }).join("");
 }
 function buildRoutineSequence(routine) {
-  return (routine.blocks || []).map((block, blockIndex) => ({
+  const type = routine.type || "standard";
+  const blocks = routine.blocks || [];
+  if (type === "circuit") {
+    const block = blocks[0] || { exercises: [] };
+    return [{
+      kind: "circuit",
+      blockIndex: 0,
+      blockName: "Circuit",
+      exercises: (block.exercises || []).map(entry => ({ exerciseId: entry.exerciseId })),
+      timeCapMinutes: number(block.timeCapMinutes, 10)
+    }];
+  }
+  if (type === "ladder-down" || type === "ladder-up") {
+    const block = blocks[0] || { exercises: [] };
+    const startReps = number(block.startReps, type === "ladder-down" ? 10 : 1);
+    const endReps = number(block.endReps, type === "ladder-down" ? 1 : 10);
+    const direction = startReps <= endReps ? 1 : -1;
+    const maxSteps = Math.min((block.exercises || []).length, Math.abs(endReps - startReps) + 1);
+    return Array.from({ length: maxSteps }, (_, stepIndex) => ({
+      kind: "ladder",
+      blockIndex: stepIndex,
+      blockName: `Ladder step ${stepIndex + 1}`,
+      exercises: (block.exercises || []).slice(0, stepIndex + 1).map((entry, exerciseIndex) => ({ exerciseId: entry.exerciseId, reps: startReps + (exerciseIndex * direction) })),
+      timeCapMinutes: number(block.timeCapMinutes, 15),
+      stepNumber: stepIndex + 1,
+      totalSteps: maxSteps
+    }));
+  }
+  return blocks.map((block, blockIndex) => ({
+    kind: type === "superset" ? "superset" : "standard",
     blockIndex,
-    blockName: `Round ${blockIndex + 1}`,
-    exercises: (block.exercises || []).map(entry => entry.exerciseId)
+    blockName: type === "superset" ? `Superset ${blockIndex + 1}` : `Exercise group ${blockIndex + 1}`,
+    exercises: (block.exercises || []).map(entry => ({ exerciseId: entry.exerciseId }))
   }));
 }
 
+function routineCountdownRemainingMs() {
+  if (!activeRoutineSession?.countdownEndsAt) return 0;
+  return Math.max(0, activeRoutineSession.countdownEndsAt - Date.now());
+}
+function routineCountdownText() {
+  const ms = routineCountdownRemainingMs();
+  const total = Math.ceil(ms / 1000);
+  return `${String(Math.floor(total / 60)).padStart(2,"0")}:${String(total % 60).padStart(2,"0")}`;
+}
+function routineNextLabel() {
+  const type = activeRoutineSession?.type || "standard";
+  if (type === "superset") return "Next superset";
+  if (type === "circuit") return "Complete circuit round";
+  if (type.startsWith("ladder")) return "Complete ladder step";
+  return "Next exercise group";
+}
 function loadRoutineRound(blockIndex) {
   const block = activeRoutineSession?.sequence?.[blockIndex];
   if (!block) return false;
   manualRoundNumber = blockIndex + 1;
-  manualGroupExercises = block.exercises.map(exerciseId => blankGroupExercise(exerciseId));
+  manualGroupExercises = block.exercises.map(entry => {
+    const item = blankGroupExercise(entry.exerciseId);
+    if (entry.reps != null) item.reps = entry.reps;
+    return item;
+  });
   if (!manualGroupExercises.length) manualGroupExercises = [blankGroupExercise(exercises[0]?.id)];
   renderManualRound();
+  renderRoutineSession();
+  persistActiveWorkoutDraft();
   return true;
 }
-
 function startRoutine(id) {
   const routine = routines.find((entry) => entry.id === id);
   if (!routine) return;
+  const sequence = buildRoutineSequence(routine);
+  if (!sequence.length) return showToast("This routine has no exercises.");
   startWorkoutSessionTimer();
   workoutDraftDirty = true;
+  const timedType = routine.type === "circuit" || String(routine.type || "").startsWith("ladder");
+  const timeCapMinutes = number(sequence[0]?.timeCapMinutes, routine.type === "circuit" ? 10 : 15);
   activeRoutineSession = {
     routineId: routine.id,
     routineName: routine.name,
+    type: routine.type || "standard",
     date: today(),
-    sequence: buildRoutineSequence(routine),
-    currentBlockIndex: 0
+    sequence,
+    currentBlockIndex: 0,
+    circuitRoundsCompleted: 0,
+    countdownEndsAt: timedType ? Date.now() + timeCapMinutes * 60000 : null,
+    timeCapMinutes
   };
   manualRounds = [];
-  $("routineSessionCard")?.classList.add("hidden");
-  $("manualWorkoutCard")?.classList.remove("hidden");
-  $("manualSetCard")?.classList.remove("hidden");
   loadRoutineRound(0);
-  persistActiveWorkoutDraft();
   switchTab("workout");
-  showToast(`${routine.name} loaded.`);
+  showToast(`${routine.name} started.`);
 }
-
+function renderRoutineSession() {
+  const card = $("routineSessionCard");
+  const nextButton = $("addRoundBtn");
+  if (!card) return;
+  if (!activeRoutineSession) {
+    card.classList.add("hidden");
+    if (nextButton) nextButton.classList.add("hidden");
+    return;
+  }
+  const type = activeRoutineSession.type || "standard";
+  const step = activeRoutineSession.sequence?.[activeRoutineSession.currentBlockIndex];
+  if (!step) return;
+  const timed = type === "circuit" || type.startsWith("ladder");
+  const progressLabel = type === "circuit"
+    ? `Round ${activeRoutineSession.circuitRoundsCompleted + 1}`
+    : `${activeRoutineSession.currentBlockIndex + 1} of ${activeRoutineSession.sequence.length}`;
+  const typeLabel = type === "superset" ? "Superset" : type === "circuit" ? "Circuit" : type.startsWith("ladder") ? "Growing ladder" : "Standard routine";
+  card.classList.remove("hidden");
+  card.innerHTML = `<div class="routine-live-head"><div><p class="eyebrow">${escapeHtml(typeLabel)}</p><h2>${escapeHtml(activeRoutineSession.routineName)}</h2><p class="muted compact">${escapeHtml(step.blockName)} · ${escapeHtml(progressLabel)}</p></div>${timed ? `<div class="routine-countdown"><small>Time remaining</small><strong id="routineCountdownDisplay">${routineCountdownText()}</strong></div>` : ""}</div><div class="routine-live-actions"><button id="routinePreviousBtn" class="ghost small" type="button" ${activeRoutineSession.currentBlockIndex === 0 ? "disabled" : ""}>Back</button><button id="endRoutineEarlyBtn" class="danger small" type="button">End routine</button></div>`;
+  if (nextButton) {
+    nextButton.classList.remove("hidden");
+    nextButton.textContent = routineNextLabel();
+    nextButton.className = "primary routine-next-button";
+  }
+}
+function advanceRoutineSession() {
+  if (!activeRoutineSession) return;
+  const type = activeRoutineSession.type || "standard";
+  if ((type === "circuit" || type.startsWith("ladder")) && routineCountdownRemainingMs() <= 0) {
+    showToast("The routine time cap has ended. Finish and save your workout when ready.");
+    return;
+  }
+  if (type === "circuit") {
+    activeRoutineSession.circuitRoundsCompleted += 1;
+    manualRoundNumber += 1;
+    const step = activeRoutineSession.sequence[0];
+    manualGroupExercises = step.exercises.map(entry => blankGroupExercise(entry.exerciseId));
+    renderManualRound(); renderRoutineSession(); persistActiveWorkoutDraft();
+    return;
+  }
+  const nextIndex = activeRoutineSession.currentBlockIndex + 1;
+  if (nextIndex >= activeRoutineSession.sequence.length) {
+    showToast("That was the final routine section. Finish and save the workout when ready.");
+    return;
+  }
+  activeRoutineSession.currentBlockIndex = nextIndex;
+  loadRoutineRound(nextIndex);
+}
+function previousRoutineSession() {
+  if (!activeRoutineSession || activeRoutineSession.type === "circuit") return;
+  const previous = Math.max(0, activeRoutineSession.currentBlockIndex - 1);
+  activeRoutineSession.currentBlockIndex = previous;
+  loadRoutineRound(previous);
+}
 function currentRoutineStep() {
   return activeRoutineSession?.sequence[activeRoutineSession.currentIndex] || null;
 }
@@ -1499,7 +1609,7 @@ function openWorkoutEdit(id){
   const exercisesMarkup=(workout.exercises||[]).map((entry,ei)=>{
     const sets=entry.sets||[];
     return `<details class="edit-exercise-accordion" ${ei===0?'open':''}>
-      <summary><span><strong>${escapeHtml(entry.exerciseName||'Exercise')}</strong><small>${sets.length} set${sets.length===1?'':'s'}</small></span><span class="chevron">⌄</span></summary>
+      <summary><span><strong>${escapeHtml(entry.exerciseName||'Exercise')}</strong><small>${sets.length} set${sets.length===1?'':'s'}</small></span><span class="routine-type-pill">${escapeHtml((routine.type||"standard").replace("ladder-down","growing ladder").replace("ladder-up","growing ladder"))}</span><span class="chevron">⌄</span></summary>
       <div class="edit-exercise-content">${sets.map((set,si)=>`<div class="edit-set-row compact-edit-set" data-edit-set="${ei}:${si}"><span class="set-number">Set ${si+1}</span><label>Reps/sec<input data-edit-field="reps" inputmode="decimal" value="${number(set.reps)}"/></label><label>Weight<input data-edit-field="weight" inputmode="decimal" value="${number(set.weight)}"/></label><label>Side<select data-edit-field="side"><option value="both" ${(set.side||'both')==='both'?'selected':''}>Both</option><option value="left" ${set.side==='left'?'selected':''}>Left</option><option value="right" ${set.side==='right'?'selected':''}>Right</option></select></label></div>`).join('')}</div>
     </details>`;
   }).join('');
@@ -1885,33 +1995,14 @@ $("routineBlocks").onclick = (event) => {
 };
 
 $("routineSessionCard").onclick = async (event) => {
-  const adjustButton = event.target.closest("[data-routine-adjust]");
-  if (adjustButton) return adjustRoutineValue(adjustButton.dataset.routineAdjust, number(adjustButton.dataset.delta));
-  const sideButton = event.target.closest("[data-routine-side]");
-  if (sideButton) {
-    activeRoutineSession.currentSide = sideButton.dataset.routineSide;
-    document.querySelectorAll("[data-routine-side]").forEach((button) => button.classList.toggle("active", button === sideButton));
-    return;
-  }
-  if (event.target.closest("#completeRoutineSetBtn")) return completeRoutineStep();
-  if (event.target.closest("#skipRoutineStepBtn")) return skipRoutineStep();
+  if (event.target.closest("#routinePreviousBtn")) return previousRoutineSession();
   if (event.target.closest("#endRoutineEarlyBtn")) {
-    if (await askConfirm("End routine early", "Save the completed sets so far?")) await saveRoutineWorkout();
-    else closeRoutineSession();
+    if (await askConfirm("End routine", "Finish and save the sets completed so far?")) await savePairWorkout();
+    return;
   }
 };
 
-$("routineSessionCard").onchange = (event) => {
-  if (event.target.id !== "routineSwapExercise") return;
-  const exercise = exerciseById(event.target.value);
-  if (!exercise) return;
-  $("routineRepsValue").value = exercise.defaultReps || 10;
-  if ($("routineWeightValue")) $("routineWeightValue").value = exercise.defaultWeight || 0;
-  const weightBlock = $("routineWeightValue")?.closest(".stepper-block");
-  weightBlock?.classList.toggle("hidden", exerciseInputType(exercise) !== "repsWeight");
-  $("routineSideWrap")?.classList.toggle("hidden", exercise.mode === "standard");
-  activeRoutineSession.currentSide = exercise.mode === "standard" ? "both" : "left";
-};
+$("routineSessionCard").onchange = () => {};
 
 $("routineSortSelect")?.addEventListener("change",event=>{routineSortMode=event.target.value;renderRoutines();});
 $("classDayFilter")?.addEventListener("change",event=>{classDayFilter=event.target.value;renderClasses();});
