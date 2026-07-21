@@ -1230,28 +1230,6 @@ function currentRoutineStep() {
   return activeRoutineSession?.sequence[activeRoutineSession.currentIndex] || null;
 }
 
-function renderRoutineSession() {
-  if (!activeRoutineSession) return;
-  const step = currentRoutineStep();
-  if (!step) return finishRoutineSessionPrompt();
-  const exercise = exerciseById(step.exerciseId);
-  if (!exercise) return;
-  const progress = activeRoutineSession.sequence.length ? (activeRoutineSession.currentIndex / activeRoutineSession.sequence.length) * 100 : 0;
-  $("routineSessionCard").innerHTML = `
-    <div class="row between gap"><div><h2>${escapeHtml(activeRoutineSession.routineName)}</h2><p class="muted compact">${escapeHtml(step.blockName)} · Round ${step.round} of ${step.totalRounds}</p></div><button id="endRoutineEarlyBtn" class="danger small" type="button">End early</button></div>
-    <div class="session-progress"><div style="width:${progress}%"></div></div>
-    <h2 class="session-title">${escapeHtml(exercise.name)}</h2>
-    <p class="session-meta">Exercise ${activeRoutineSession.currentIndex + 1} of ${activeRoutineSession.sequence.length}</p>
-    <label>Swap for today only<select id="routineSwapExercise">${exercises.map((entry) => `<option value="${escapeHtml(entry.id)}" ${entry.id === exercise.id ? "selected" : ""}>${escapeHtml(entry.name)}</option>`).join("")}</select></label>
-    <div id="routineSideWrap" class="segmented ${exercise.mode === "standard" ? "hidden" : ""}"><button data-routine-side="left" class="active" type="button">Left</button><button data-routine-side="right" type="button">Right</button><button data-routine-side="both" type="button">Both</button></div>
-    <div class="stepper-block"><div class="stepper-label">${exercise.inputType === "time" ? "Seconds" : "Reps"}</div><div class="stepper"><button data-routine-adjust="reps" data-delta="-1" type="button">−</button><input id="routineRepsValue" inputmode="numeric" value="${number(step.defaultReps, exercise.defaultReps || 10)}" /><button data-routine-adjust="reps" data-delta="1" type="button">+</button></div></div>
-    <div class="stepper-block ${exerciseInputType(exercise) !== "repsWeight" ? "hidden" : ""}"><div class="stepper-label">Weight (${escapeHtml(settings.unit)})</div><div class="stepper"><button data-routine-adjust="weight" data-delta="-1" type="button">−</button><input id="routineWeightValue" inputmode="decimal" value="${number(step.defaultWeight, exercise.defaultWeight || 0)}" /><button data-routine-adjust="weight" data-delta="1" type="button">+</button></div></div>
-    <label>Notes<textarea id="routineSetNotes" rows="2" placeholder="Optional note for this set"></textarea></label>
-    <div class="session-actions"><button id="completeRoutineSetBtn" class="primary" type="button">Complete set</button><button id="skipRoutineStepBtn" class="secondary" type="button">Skip today</button></div>
-    <div class="top-gap"><strong>Completed: ${activeRoutineSession.completed.length}</strong> · <span class="muted">Skipped: ${activeRoutineSession.skipped.length}</span></div>`;
-  activeRoutineSession.currentSide = exercise.mode === "standard" ? "both" : "left";
-}
-
 function adjustRoutineValue(kind, delta) {
   const step = currentRoutineStep();
   const exercise = exerciseById($("routineSwapExercise")?.value || step?.exerciseId);
